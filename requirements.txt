@@ -1,0 +1,111 @@
+# ZeroPain Therapeutics Framework - Python Dependencies
+# =====================================================
+
+# Core Scientific Computing
+numpy>=1.24.0,<2.0.0
+pandas>=2.0.0,<3.0.0
+scipy>=1.10.0,<2.0.0
+
+# Visualization & Plotting
+matplotlib>=3.7.0,<4.0.0
+seaborn>=0.12.0,<1.0.0
+plotly>=5.14.0,<6.0.0
+
+# Machine Learning & Optimization
+scikit-learn>=1.3.0,<2.0.0
+joblib>=1.3.0,<2.0.0
+
+# Progress Bars & User Interface
+tqdm>=4.65.0,<5.0.0
+rich>=13.0.0,<14.0.0
+colorlog>=6.7.0,<7.0.0
+
+# Data Validation & Processing
+pydantic>=2.0.0,<3.0.0
+marshmallow>=3.20.0,<4.0.0
+
+# Statistical Analysis
+statsmodels>=0.14.0,<1.0.0
+pingouin>=0.5.3,<1.0.0
+
+# Parallel Processing (Optional - for advanced users)
+# dask[complete]>=2023.5.0,<2024.0.0
+# ray>=2.5.0,<3.0.0
+
+# Jupyter Support
+jupyter>=1.0.0,<2.0.0
+ipykernel>=6.25.0,<7.0.0
+jupyterlab>=4.0.0,<5.0.0
+notebook>=7.0.0,<8.0.0
+
+# Testing Framework
+pytest>=7.4.0,<8.0.0
+pytest-cov>=4.1.0,<5.0.0
+pytest-xdist>=3.3.0,<4.0.0
+
+# Documentation
+sphinx>=7.0.0,<8.0.0
+sphinx-rtd-theme>=1.3.0,<2.0.0
+
+# Code Quality (Development)
+black>=23.0.0,<24.0.0
+flake8>=6.0.0,<7.0.0
+pylint>=2.17.0,<3.0.0
+mypy>=1.4.0,<2.0.0
+
+# File Processing
+PyPDF2>=3.0.0,<4.0.0
+pdfplumber>=0.10.0,<1.0.0
+reportlab>=4.0.0,<5.0.0
+
+# Database Support (Optional)
+sqlalchemy>=2.0.0,<3.0.0
+psycopg2-binary>=2.9.0,<3.0.0
+pymongo>=4.4.0,<5.0.0
+
+# Web Framework (For future dashboard)
+fastapi>=0.100.0,<1.0.0
+uvicorn>=0.23.0,<1.0.0
+
+# Configuration & Environment
+python-dotenv>=1.0.0,<2.0.0
+pyyaml>=6.0,<7.0
+toml>=0.10.2,<1.0.0
+
+# HTTP & API Support
+requests>=2.31.0,<3.0.0
+httpx>=0.24.0,<1.0.0
+aiohttp>=3.8.0,<4.0.0
+
+# Date/Time Handling
+python-dateutil>=2.8.2,<3.0.0
+pytz>=2023.3
+
+# Performance Monitoring
+memory-profiler>=0.61.0,<1.0.0
+line-profiler>=4.1.0,<5.0.0
+
+# Caching (Optional)
+diskcache>=5.6.0,<6.0.0
+# redis>=4.6.0,<5.0.0
+
+# Cloud Storage (Optional - uncomment if needed)
+# boto3>=1.28.0,<2.0.0  # AWS
+# google-cloud-storage>=2.10.0,<3.0.0  # GCP
+# azure-storage-blob>=12.17.0,<13.0.0  # Azure
+
+# GPU Acceleration (Optional - uncomment if available)
+# cupy-cuda11x>=12.0.0  # For NVIDIA GPUs
+# jax[cuda]>=0.4.0      # For JAX acceleration
+
+# ===========================================
+# Minimal Installation (Quick Start)
+# ===========================================
+# For users who want only essential packages:
+# pip install numpy pandas scipy matplotlib seaborn tqdm jupyter
+
+# ===========================================
+# Development Installation
+# ===========================================
+# pip install -r requirements.txt
+# pip install -e .
