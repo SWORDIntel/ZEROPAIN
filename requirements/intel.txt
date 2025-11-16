@@ -1,0 +1,23 @@
+# Intel AI Acceleration Requirements
+
+# Intel Extension for PyTorch - Arc GPU acceleration
+# intel-extension-for-pytorch>=2.0.0
+
+# OpenVINO - NPU acceleration
+# openvino>=2023.0.0
+
+# Intel Optimization for TensorFlow (optional)
+# intel-tensorflow>=2.13.0
+
+# Neural Compressor - Model optimization
+# neural-compressor>=2.3.0
+
+# PyTorch (if using Intel extensions)
+torch>=2.0.0
+torchvision>=0.15.0
+
+# Intel MKL - Math Kernel Library
+# mkl>=2023.0.0
+
+# Note: Some Intel packages may require specific installation methods
+# See: https://www.intel.com/content/www/us/en/developer/tools/oneapi/ai-analytics-toolkit.html
