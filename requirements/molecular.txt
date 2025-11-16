@@ -1,0 +1,28 @@
+# Molecular Modeling & Docking Requirements
+
+# RDKit - Molecular structure handling
+# Install via conda: conda install -c conda-forge rdkit
+# rdkit>=2023.9.1
+
+# AutoDock Vina - Molecular docking
+# Install from: https://github.com/ccsb-scripps/AutoDock-Vina
+# autodock-vina>=1.2.5
+
+# Open Babel - Format conversion
+# Install via conda: conda install -c conda-forge openbabel
+# openbabel>=3.1.1
+
+# ProDy - Protein structure analysis
+prody>=2.4.0
+
+# Biopython - Bioinformatics tools
+biopython>=1.81
+
+# 3Dmol - 3D molecular visualization
+py3Dmol>=2.0.3
+
+# Molecular descriptors
+mordred>=1.2.0
+
+# Chemical similarity
+chembl-webresource-client>=0.10.8

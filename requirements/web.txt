@@ -1,0 +1,31 @@
+# Web Interface Requirements
+
+# FastAPI - Modern web framework
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+
+# WebSocket support
+websockets>=12.0
+
+# File uploads
+python-multipart>=0.0.6
+
+# CORS middleware (already in FastAPI)
+
+# Authentication
+python-jose[cryptography]>=3.3.0
+passlib[bcrypt]>=1.7.4
+python-multipart>=0.0.6
+
+# API documentation
+swagger-ui-bundle>=0.0.9
+
+# HTTP client
+httpx>=0.25.0
+aiohttp>=3.9.0
+
+# Rate limiting
+slowapi>=0.1.9
+
+# Session management
+itsdangerous>=2.1.2

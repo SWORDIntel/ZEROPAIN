@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ZeroPain Therapeutics - TEMPEST Platform</title>
+    <style>
+        :root {
+            /* TEMPEST Class C Color Scheme */
+            --bg-primary: #0D1117;
+            --bg-secondary: #0A1929;
+            --bg-tertiary: #1E3A5F;
+            --accent-cyan: #00D9FF;
+            --accent-green: #00FF88;
+            --accent-amber: #FFB800;
+            --accent-red: #FF3366;
+            --text-primary: #E0E0E0;
+            --text-secondary: #A0A0A0;
+            --border-color: #2C3E50;
+            --hover-bg: #1A2332;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'JetBrains Mono', 'Consolas', 'Monaco', monospace;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+
+        /* Tactical grid overlay */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image:
+                linear-gradient(rgba(0, 217, 255, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 217, 255, 0.03) 1px, transparent 1px);
+            background-size: 50px 50px;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        /* Scan line effect */
+        body::after {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 3px;
+            background: linear-gradient(90deg,
+                transparent 0%,
+                var(--accent-cyan) 50%,
+                transparent 100%);
+            animation: scan 3s linear infinite;
+            opacity: 0.3;
+            pointer-events: none;
+            z-index: 1000;
+        }
+
+        @keyframes scan {
+            0% { transform: translateY(0); }
+            100% { transform: translateY(100vh); }
+        }
+
+        .container {
+            position: relative;
+            z-index: 1;
+            max-width: 1920px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        /* Header - TEMPEST Classification */
+        header {
+            background: linear-gradient(135deg, var(--bg-secondary), var(--bg-tertiary));
+            border: 1px solid var(--accent-cyan);
+            border-radius: 4px;
+            padding: 20px;
+            margin-bottom: 20px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        header::before {
+            content: 'CLASSIFIED';
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            font-size: 10px;
+            color: var(--accent-red);
+            font-weight: bold;
+            letter-spacing: 2px;
+        }
+
+        header h1 {
+            font-size: 2.5em;
+            color: var(--accent-cyan);
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            text-shadow: 0 0 10px rgba(0, 217, 255, 0.5);
+            margin-bottom: 10px;
+        }
+
+        header .subtitle {
+            color: var(--accent-green);
+            font-size: 0.9em;
+            letter-spacing: 1px;
+        }
+
+        header .status-bar {
+            margin-top: 15px;
+            display: flex;
+            gap: 20px;
+            font-size: 0.8em;
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: var(--accent-green);
+            box-shadow: 0 0 10px var(--accent-green);
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        /* Navigation Grid */
+        .nav-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .nav-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            padding: 20px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .nav-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 2px;
+            background: linear-gradient(90deg, var(--accent-cyan), transparent);
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .nav-card:hover {
+            background: var(--hover-bg);
+            border-color: var(--accent-cyan);
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(0, 217, 255, 0.2);
+        }
+
+        .nav-card:hover::before {
+            opacity: 1;
+        }
+
+        .nav-card h3 {
+            color: var(--accent-cyan);
+            margin-bottom: 10px;
+            font-size: 1.2em;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .nav-card p {
+            color: var(--text-secondary);
+            font-size: 0.9em;
+        }
+
+        .nav-card .icon {
+            font-size: 2em;
+            margin-bottom: 10px;
+            opacity: 0.7;
+        }
+
+        /* Main content area */
+        #app {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            padding: 30px;
+            min-height: 600px;
+        }
+
+        /* Tactical data table */
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            font-size: 0.9em;
+        }
+
+        .data-table th {
+            background: var(--bg-tertiary);
+            color: var(--accent-cyan);
+            padding: 12px;
+            text-align: left;
+            border: 1px solid var(--border-color);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-size: 0.85em;
+        }
+
+        .data-table td {
+            padding: 10px 12px;
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+        }
+
+        .data-table tr:hover {
+            background: var(--hover-bg);
+        }
+
+        /* Status badges */
+        .badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 3px;
+            font-size: 0.8em;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .badge-success {
+            background: rgba(0, 255, 136, 0.2);
+            color: var(--accent-green);
+            border: 1px solid var(--accent-green);
+        }
+
+        .badge-warning {
+            background: rgba(255, 184, 0, 0.2);
+            color: var(--accent-amber);
+            border: 1px solid var(--accent-amber);
+        }
+
+        .badge-danger {
+            background: rgba(255, 51, 102, 0.2);
+            color: var(--accent-red);
+            border: 1px solid var(--accent-red);
+        }
+
+        /* Input controls */
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 8px;
+            color: var(--accent-cyan);
+            text-transform: uppercase;
+            font-size: 0.85em;
+            letter-spacing: 1px;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 12px;
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            color: var(--text-primary);
+            font-family: inherit;
+            transition: all 0.3s;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: var(--accent-cyan);
+            box-shadow: 0 0 10px rgba(0, 217, 255, 0.3);
+        }
+
+        /* Tactical buttons */
+        .btn {
+            padding: 12px 24px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--accent-cyan);
+            color: var(--accent-cyan);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-family: inherit;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            border-radius: 50%;
+            background: rgba(0, 217, 255, 0.3);
+            transform: translate(-50%, -50%);
+            transition: width 0.6s, height 0.6s;
+        }
+
+        .btn:hover::before {
+            width: 300px;
+            height: 300px;
+        }
+
+        .btn:hover {
+            background: var(--accent-cyan);
+            color: var(--bg-primary);
+            box-shadow: 0 0 20px rgba(0, 217, 255, 0.5);
+        }
+
+        .btn-primary {
+            background: var(--accent-cyan);
+            color: var(--bg-primary);
+        }
+
+        .btn-success {
+            border-color: var(--accent-green);
+            color: var(--accent-green);
+        }
+
+        .btn-success:hover {
+            background: var(--accent-green);
+            color: var(--bg-primary);
+        }
+
+        /* Progress bar */
+        .progress-container {
+            width: 100%;
+            height: 30px;
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, var(--accent-cyan), var(--accent-green));
+            transition: width 0.5s ease;
+            position: relative;
+        }
+
+        .progress-bar::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(90deg,
+                transparent 0%,
+                rgba(255, 255, 255, 0.3) 50%,
+                transparent 100%);
+            animation: shimmer 2s infinite;
+        }
+
+        @keyframes shimmer {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+        }
+
+        /* Footer */
+        footer {
+            margin-top: 40px;
+            padding: 20px;
+            border-top: 1px solid var(--border-color);
+            text-align: center;
+            color: var(--text-secondary);
+            font-size: 0.85em;
+        }
+
+        footer .classification {
+            color: var(--accent-red);
+            font-weight: bold;
+            letter-spacing: 2px;
+            margin-bottom: 10px;
+        }
+
+        /* Loading animation */
+        .loader {
+            border: 3px solid var(--bg-tertiary);
+            border-top: 3px solid var(--accent-cyan);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🧬 ZeroPain Therapeutics</h1>
+            <div class="subtitle">TEMPEST Class C - Molecular Therapeutics Platform v4.0</div>
+            <div class="status-bar">
+                <div class="status-indicator">
+                    <div class="status-dot"></div>
+                    <span>SYSTEM OPERATIONAL</span>
+                </div>
+                <div class="status-indicator">
+                    <div class="status-dot" style="background: var(--accent-green);"></div>
+                    <span>AI INFERENCE: ACTIVE</span>
+                </div>
+                <div class="status-indicator">
+                    <div class="status-dot" style="background: var(--accent-amber);"></div>
+                    <span>DOCKING ENGINE: READY</span>
+                </div>
+            </div>
+        </header>
+
+        <div class="nav-grid">
+            <div class="nav-card" onclick="loadModule('compounds')">
+                <div class="icon">💊</div>
+                <h3>Compound Browser</h3>
+                <p>Search and analyze molecular compounds. View structures, properties, and safety profiles.</p>
+            </div>
+
+            <div class="nav-card" onclick="loadModule('docking')">
+                <div class="icon">🔬</div>
+                <h3>Molecular Docking</h3>
+                <p>Perform protein-ligand docking. Predict binding affinities and analyze interactions.</p>
+            </div>
+
+            <div class="nav-card" onclick="loadModule('optimization')">
+                <div class="icon">⚙️</div>
+                <h3>Protocol Optimization</h3>
+                <p>Optimize multi-compound protocols using Intel-accelerated algorithms.</p>
+            </div>
+
+            <div class="nav-card" onclick="loadModule('simulation')">
+                <div class="icon">👥</div>
+                <h3>Patient Simulation</h3>
+                <p>Run large-scale population simulations. Analyze clinical outcomes and safety.</p>
+            </div>
+
+            <div class="nav-card" onclick="loadModule('analysis')">
+                <div class="icon">📊</div>
+                <h3>Data Analysis</h3>
+                <p>Generate comprehensive medical reports. Statistical analysis and visualization.</p>
+            </div>
+
+            <div class="nav-card" onclick="loadModule('intel')">
+                <div class="icon">🚀</div>
+                <h3>Intel AI Inference</h3>
+                <p>ADMET prediction, toxicity analysis, and property estimation using Intel NPU/GPU.</p>
+            </div>
+        </div>
+
+        <div id="app">
+            <h2 style="color: var(--accent-cyan); margin-bottom: 20px;">🎯 WELCOME TO ZEROPAIN PLATFORM</h2>
+            <p style="margin-bottom: 20px;">Select a module above to begin analysis.</p>
+
+            <div class="data-table" style="width: auto;">
+                <table style="width: 100%;">
+                    <tr>
+                        <th>System Component</th>
+                        <th>Status</th>
+                        <th>Performance</th>
+                    </tr>
+                    <tr>
+                        <td>Molecular Docking Engine</td>
+                        <td><span class="badge badge-success">OPERATIONAL</span></td>
+                        <td>< 5 min/compound</td>
+                    </tr>
+                    <tr>
+                        <td>Intel AI Inference (NPU)</td>
+                        <td><span class="badge badge-success">ACTIVE</span></td>
+                        <td>1000+ predictions/sec</td>
+                    </tr>
+                    <tr>
+                        <td>Population Simulator</td>
+                        <td><span class="badge badge-success">READY</span></td>
+                        <td>500K patients/run</td>
+                    </tr>
+                    <tr>
+                        <td>Database</td>
+                        <td><span class="badge badge-success">CONNECTED</span></td>
+                        <td>12+ compounds indexed</td>
+                    </tr>
+                    <tr>
+                        <td>API Backend</td>
+                        <td><span class="badge badge-success">LISTENING</span></td>
+                        <td>Port 8000</td>
+                    </tr>
+                </table>
+            </div>
+
+            <div style="margin-top: 30px; padding: 20px; background: var(--bg-tertiary); border-left: 4px solid var(--accent-green); border-radius: 4px;">
+                <h3 style="color: var(--accent-green); margin-bottom: 10px;">📌 MISSION OBJECTIVES</h3>
+                <ul style="margin-left: 20px; color: var(--text-secondary);">
+                    <li>Zero Addiction - Minimize β-arrestin pathway activation</li>
+                    <li>Zero Tolerance - Prevent receptor desensitization</li>
+                    <li>Zero Withdrawal - Sustained G-protein signaling</li>
+                    <li>Maximum Efficacy - >70% treatment success rate</li>
+                </ul>
+            </div>
+        </div>
+
+        <footer>
+            <div class="classification">⚠️ TEMPEST CLASS C - CONTROLLED ACCESS ⚠️</div>
+            <div>ZeroPain Therapeutics Framework v4.0 | © 2025 All Rights Reserved</div>
+            <div style="margin-top: 10px; font-size: 0.8em;">
+                Zero Addiction • Zero Tolerance • Zero Withdrawal
+            </div>
+        </footer>
+    </div>
+
+    <script>
+        function loadModule(module) {
+            const app = document.getElementById('app');
+            app.innerHTML = `
+                <div class="loader"></div>
+                <h2 style="color: var(--accent-cyan); text-align: center; margin-top: 20px;">
+                    Loading ${module.toUpperCase()} module...
+                </h2>
+            `;
+
+            // In production, this would load React components
+            setTimeout(() => {
+                app.innerHTML = `
+                    <h2 style="color: var(--accent-cyan); margin-bottom: 20px;">
+                        ${module.toUpperCase()} MODULE
+                    </h2>
+                    <p style="color: var(--text-secondary);">
+                        This module will load the full React interface with ${module} functionality.
+                    </p>
+                    <p style="margin-top: 20px;">
+                        <button class="btn btn-primary">Connect to API</button>
+                        <button class="btn" style="margin-left: 10px;">View Documentation</button>
+                    </p>
+                `;
+            }, 500);
+        }
+
+        // Simulated system status updates
+        setInterval(() => {
+            const dots = document.querySelectorAll('.status-dot');
+            dots.forEach(dot => {
+                const opacity = Math.random() > 0.3 ? 1 : 0.5;
+                dot.style.opacity = opacity;
+            });
+        }, 2000);
+    </script>
+</body>
+</html>

@@ -64,3 +64,26 @@ site/
 *.tmp
 *.bak
 .cache/
+
+# Molecular modeling
+*.pdb
+*.pdbqt
+*.mol2
+*.sdf
+data/receptors/*.pdb
+data/results/
+
+# Web frontend
+web/frontend/node_modules/
+web/frontend/dist/
+web/frontend/build/
+*.map
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Job storage
+active_jobs/
+completed_jobs/
