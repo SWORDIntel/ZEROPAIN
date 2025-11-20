@@ -2,6 +2,22 @@
 """
 ZeroPain FastAPI Backend
 RESTful API for molecular therapeutics platform
+
+IMPORTANT: CPU-Bound Operations and Event Loop
+--------------------------------------------
+This API handles CPU-intensive operations (molecular docking, multiprocessing)
+that must not block the asyncio event loop. Pattern to use:
+
+    async def background_task():
+        # For CPU-bound work, use run_in_executor to keep API responsive
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(
+            None,  # Uses default ThreadPoolExecutor
+            cpu_intensive_function,
+            *args
+        )
+
+Without this pattern, the event loop blocks and all API/WebSocket connections freeze.
 """
 
 from fastapi import FastAPI, HTTPException, BackgroundTasks, WebSocket, WebSocketDisconnect
@@ -202,12 +218,17 @@ async def predict_admet(request: ADMETRequest):
 async def dock_compound(request: DockingRequest, background_tasks: BackgroundTasks):
     """Dock single compound to receptor"""
     try:
-        result = docking_engine.dock(
-            request.smiles,
-            request.compound_name,
-            request.receptor,
-            request.exhaustiveness,
-            request.num_modes
+        # Run docking in executor to avoid blocking event loop (can take ~5 min)
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(
+            None,
+            lambda: docking_engine.dock(
+                request.smiles,
+                request.compound_name,
+                request.receptor,
+                request.exhaustiveness,
+                request.num_modes
+            )
         )
 
         if result is None:
@@ -248,18 +269,24 @@ async def batch_dock(request: BatchDockingRequest):
         "updated_at": datetime.now().isoformat()
     }
 
-    # Start background task
+    # Start background task with proper async execution
     async def run_batch_docking():
         try:
             active_jobs[job_id]["status"] = "running"
+            active_jobs[job_id]["updated_at"] = datetime.now().isoformat()
 
             compounds_list = [(c.name, c.smiles) for c in request.compounds]
 
-            # Run batch docking
-            results = docking_engine.batch_dock(
-                compounds_list,
-                receptor=request.receptor,
-                n_jobs=-1
+            # Run CPU-bound docking in thread pool to avoid blocking event loop
+            # This keeps the API responsive during long-running docking operations
+            loop = asyncio.get_event_loop()
+            results = await loop.run_in_executor(
+                None,  # Use default ThreadPoolExecutor
+                lambda: docking_engine.batch_dock(
+                    compounds_list,
+                    receptor=request.receptor,
+                    n_jobs=-1
+                )
             )
 
             # Store results
@@ -275,8 +302,9 @@ async def batch_dock(request: BatchDockingRequest):
         except Exception as e:
             active_jobs[job_id]["status"] = "failed"
             active_jobs[job_id]["error"] = str(e)
+            active_jobs[job_id]["updated_at"] = datetime.now().isoformat()
 
-    # Run in background
+    # Run in background (now properly yields control)
     asyncio.create_task(run_batch_docking())
 
     return {
