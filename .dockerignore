@@ -1,0 +1,11 @@
+.git
+__pycache__
+*.pyc
+node_modules
+web/frontend/node_modules
+dist
+.env
+.env.*
+.idea
+.vscode
+docker/secrets/admin_bootstrap_secret
