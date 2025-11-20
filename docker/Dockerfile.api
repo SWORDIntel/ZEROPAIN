@@ -1,0 +1,37 @@
+# syntax=docker/dockerfile:1
+FROM python:3.11-slim AS builder
+
+ENV VIRTUAL_ENV=/opt/venv
+RUN python -m venv $VIRTUAL_ENV
+ENV PATH="$VIRTUAL_ENV/bin:$PATH"
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    libpq-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements/base.txt requirements/web.txt requirements/database.txt /tmp/requirements/
+RUN pip install --no-cache-dir -r /tmp/requirements/base.txt -r /tmp/requirements/web.txt -r /tmp/requirements/database.txt
+
+FROM python:3.11-slim
+ENV VIRTUAL_ENV=/opt/venv
+ENV PATH="$VIRTUAL_ENV/bin:$PATH"
+COPY --from=builder $VIRTUAL_ENV $VIRTUAL_ENV
+
+RUN groupadd -r app && useradd -r -g app app \
+    && mkdir -p /app
+WORKDIR /app
+
+COPY requirements/base.txt requirements/web.txt requirements/database.txt /app/requirements/
+COPY zeropain /app/zeropain
+COPY DOCKER_DEPLOYMENT_PLAN.md /app/DOCKER_DEPLOYMENT_PLAN.md
+
+ENV HOST=0.0.0.0
+ENV PORT=8000
+ENV GUNICORN_WORKERS=4
+ENV GUNICORN_TIMEOUT=60
+
+USER app
+
+EXPOSE 8000
+CMD ["bash", "-lc", "gunicorn zeropain.api.main:app --workers ${GUNICORN_WORKERS} --worker-class uvicorn.workers.UvicornWorker --bind 0.0.0.0:${PORT} --timeout ${GUNICORN_TIMEOUT}"]

@@ -1,0 +1,27 @@
+{$DOMAIN}:80, {$DOMAIN}:443 {
+    encode gzip
+
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Frame-Options "DENY"
+        X-Content-Type-Options "nosniff"
+        Referrer-Policy "no-referrer"
+        Content-Security-Policy "default-src 'self'; connect-src 'self' wss://{$DOMAIN} https://{$DOMAIN}; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; font-src 'self' data:;"
+        X-XSS-Protection "1; mode=block"
+    }
+
+    rate_limit api {
+        zone api { events 100; window 1m }
+        zone docking { events 10; window 1m }
+    }
+
+    @api path /api/*
+    reverse_proxy @api zeropain-api:8000
+
+    @ws path /ws/*
+    reverse_proxy @ws zeropain-api:8000
+
+    route {
+        reverse_proxy zeropain-web:80
+    }
+}
