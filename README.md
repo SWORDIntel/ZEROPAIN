@@ -100,14 +100,21 @@ Compound | Dose | Frequency | Mechanism | Half-life
 
 ### Using the Launcher Script
 
-    
-    
+
+
     chmod +x zeropain.sh
     ./zeropain.sh optimize    # Run optimization
     ./zeropain.sh simulate    # Run patient simulation
     ./zeropain.sh analyze     # Run parameter analysis
     ./zeropain.sh all         # Run complete pipeline
     ./zeropain.sh notebook    # Start Jupyter Lab
+
+## 🔐 Secure deployment, bootstrap, and Docker secrets
+
+- **Mandatory secrets**: set `SECRET_KEY` (or `SECRET_KEY_FILE`) to a strong value before starting the API. The server refuses to start with the insecure default.
+- **First-user bootstrap**: no admin is created by default. On first run, call `POST /api/auth/bootstrap` with `username`, `password`, and the `bootstrap_token` that is supplied via `ADMIN_BOOTSTRAP_SECRET` or `ADMIN_BOOTSTRAP_SECRET_FILE`. The endpoint is disabled after the first account exists.
+- **Docker secret wiring**: place your bootstrap token in `docker/secrets/admin_bootstrap_secret` (copy from the provided `.example`), and set `ADMIN_BOOTSTRAP_SECRET_FILE=/run/secrets/admin_bootstrap_secret`. Compose already mounts this secret for `zeropain-api`.
+- **Optional auto-admin (controlled)**: set `AUTO_CREATE_ADMIN=true` plus `DEFAULT_ADMIN_USERNAME` and `DEFAULT_ADMIN_PASSWORD_FILE` (or env var) if you need unattended bootstrap. Leave it `false` for maximum safety.
 
 ## 📊 Expected Results
 

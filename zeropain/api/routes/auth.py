@@ -1,249 +1,121 @@
-#!/usr/bin/env python3
-"""
-Authentication Routes
-Login, logout, token refresh, user management
-"""
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.security import HTTPBearer
+from pydantic import BaseModel, Field
+from sqlmodel import Session
 
 from ..auth import (
     authenticate_user,
-    create_user_tokens,
-    verify_token,
-    revoke_token,
-    get_current_active_user,
-    require_admin,
-    LoginRequest,
-    User,
-    Token,
-    PasswordChangeRequest,
-    get_password_hash,
-    verify_password,
-    get_user,
-    fake_users_db,
-    UserInDB
+    create_access_token,
+    create_refresh_token,
+    create_user,
+    get_current_user,
+    get_user_by_username,
+    has_any_user,
+    is_refresh_revoked,
+    revoke_refresh_token,
+    validate_bootstrap_secret,
 )
+from ..database import get_session
 
-router = APIRouter(prefix="/api/auth", tags=["authentication"])
-security = HTTPBearer()
-
-
-@router.post("/login", response_model=Token)
-async def login(login_data: LoginRequest):
-    """
-    Login with username and password
-
-    Returns JWT access and refresh tokens
-    """
-    user = authenticate_user(login_data.username, login_data.password)
-
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect username or password",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    if user.disabled:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Account is disabled"
-        )
-
-    # Create tokens
-    tokens = create_user_tokens(user)
-
-    return tokens
+router = APIRouter(prefix="/auth", tags=["auth"])
 
 
-@router.post("/refresh", response_model=Token)
-async def refresh_token(refresh_token: str):
-    """
-    Refresh access token using refresh token
+class TokenResponse(BaseModel):
+  access_token: str
+  refresh_token: str
+  token_type: str = "bearer"
+  user: dict
 
-    Returns new access and refresh tokens
-    """
-    # Verify refresh token
-    token_data = verify_token(refresh_token, token_type="refresh")
 
-    if token_data is None or token_data.username is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid refresh token"
-        )
+class LoginRequest(BaseModel):
+  username: str
+  password: str
 
-    # Get user
-    user = get_user(token_data.username)
-    if user is None or user.disabled:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User not found or disabled"
-        )
 
-    # Create new tokens
-    tokens = create_user_tokens(user)
+class BootstrapRequest(BaseModel):
+  username: str = Field(..., min_length=3)
+  password: str = Field(..., min_length=8)
+  bootstrap_token: str = Field(..., description="Secret token provided via ADMIN_BOOTSTRAP_SECRET(_FILE)")
 
-    return tokens
+
+class RefreshRequest(BaseModel):
+  refresh_token: str
+
+
+class LogoutRequest(BaseModel):
+  refresh_token: str
+
+
+@router.post("/login", response_model=TokenResponse)
+async def login(payload: LoginRequest, session: Session = Depends(get_session)):
+  user = authenticate_user(session, payload.username, payload.password)
+  if not user:
+    raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+
+  access_token = create_access_token({"sub": payload.username})
+  refresh_token = create_refresh_token({"sub": payload.username})
+  return {
+    "access_token": access_token,
+    "refresh_token": refresh_token,
+    "user": {"username": payload.username, "role": user.role},
+  }
+
+
+@router.post("/refresh", response_model=TokenResponse)
+async def refresh(payload: RefreshRequest, session: Session = Depends(get_session)):
+  if is_refresh_revoked(payload.refresh_token):
+    raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token revoked")
+
+  from jose import JWTError, jwt
+  from ..auth import ALGORITHM, SECRET_KEY
+
+  try:
+    decoded = jwt.decode(payload.refresh_token, SECRET_KEY, algorithms=[ALGORITHM])
+    username = decoded.get("sub")
+    if decoded.get("type") != "refresh":
+      raise HTTPException(status_code=400, detail="Invalid token type")
+  except JWTError:
+    raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token")
+
+  user = get_user_by_username(session, username) if username else None
+  if not user:
+    raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
+
+  access_token = create_access_token({"sub": username})
+  new_refresh = create_refresh_token({"sub": username})
+  return {
+    "access_token": access_token,
+    "refresh_token": new_refresh,
+    "user": {"username": username, "role": user.role},
+  }
+
+
+@router.post("/bootstrap", response_model=TokenResponse)
+async def bootstrap(payload: BootstrapRequest, session: Session = Depends(get_session)):
+  if has_any_user(session):
+    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Bootstrap already completed")
+
+  validate_bootstrap_secret(payload.bootstrap_token)
+
+  user = create_user(session, payload.username, payload.password, role="admin")
+
+  access_token = create_access_token({"sub": payload.username})
+  refresh_token = create_refresh_token({"sub": payload.username})
+
+  return {
+    "access_token": access_token,
+    "refresh_token": refresh_token,
+    "user": {"username": user.username, "role": user.role},
+  }
 
 
 @router.post("/logout")
-async def logout(
-    refresh_token: str,
-    current_user: User = Depends(get_current_active_user)
-):
-    """
-    Logout and revoke refresh token
-    """
-    revoke_token(refresh_token)
-
-    return {"message": "Successfully logged out"}
+async def logout(payload: LogoutRequest):
+  revoke_refresh_token(payload.refresh_token)
+  return {"status": "revoked"}
 
 
-@router.get("/me", response_model=User)
-async def get_current_user_info(
-    current_user: User = Depends(get_current_active_user)
-):
-    """
-    Get current user information
-    """
-    return current_user
-
-
-@router.post("/change-password")
-async def change_password(
-    password_data: PasswordChangeRequest,
-    current_user: User = Depends(get_current_active_user)
-):
-    """
-    Change current user's password
-    """
-    # Get user with password
-    user = get_user(current_user.username)
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found"
-        )
-
-    # Verify old password
-    if not verify_password(password_data.old_password, user.hashed_password):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Incorrect password"
-        )
-
-    # Update password
-    user.hashed_password = get_password_hash(password_data.new_password)
-    # TODO: Save to database
-
-    return {"message": "Password updated successfully"}
-
-
-@router.get("/users", response_model=list[User])
-async def list_users(admin_user: User = Depends(require_admin)):
-    """
-    List all users (admin only)
-    """
-    users = [
-        User(**user.dict(exclude={"hashed_password"}))
-        for user in fake_users_db.values()
-    ]
-    return users
-
-
-@router.post("/users/create", response_model=User)
-async def create_user(
-    username: str,
-    password: str,
-    email: str = None,
-    full_name: str = None,
-    role: str = "user",
-    admin_user: User = Depends(require_admin)
-):
-    """
-    Create new user (admin only)
-    """
-    # Check if user exists
-    if username in fake_users_db:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Username already exists"
-        )
-
-    # Create user
-    new_user = UserInDB(
-        username=username,
-        email=email,
-        full_name=full_name,
-        role=role,
-        disabled=False,
-        hashed_password=get_password_hash(password)
-    )
-
-    # Save to database
-    fake_users_db[username] = new_user
-    # TODO: Save to PostgreSQL
-
-    return User(**new_user.dict(exclude={"hashed_password"}))
-
-
-@router.delete("/users/{username}")
-async def delete_user(
-    username: str,
-    admin_user: User = Depends(require_admin)
-):
-    """
-    Delete user (admin only)
-    """
-    # Prevent deleting self
-    if username == admin_user.username:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Cannot delete your own account"
-        )
-
-    # Check if user exists
-    if username not in fake_users_db:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found"
-        )
-
-    # Delete user
-    del fake_users_db[username]
-    # TODO: Delete from PostgreSQL
-
-    return {"message": f"User {username} deleted successfully"}
-
-
-@router.put("/users/{username}/disable")
-async def disable_user(
-    username: str,
-    disabled: bool,
-    admin_user: User = Depends(require_admin)
-):
-    """
-    Enable/disable user (admin only)
-    """
-    # Prevent disabling self
-    if username == admin_user.username:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Cannot disable your own account"
-        )
-
-    # Get user
-    user = get_user(username)
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found"
-        )
-
-    # Update status
-    user.disabled = disabled
-    # TODO: Save to PostgreSQL
-
-    status_text = "disabled" if disabled else "enabled"
-    return {"message": f"User {username} {status_text} successfully"}
+@router.get("/me")
+async def me(current_user: Annotated[dict, Depends(get_current_user)]):
+  return {"username": current_user.get("username", "admin"), "role": current_user.get("role", "user")}
