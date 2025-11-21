@@ -1,0 +1,207 @@
+# ZeroPain Caddy Configuration
+# Production reverse proxy with auto-HTTPS and security
+
+{
+    # Global options
+    admin off  # Disable admin API in production
+    auto_https off  # Control HTTPS manually
+    # auto_https disable_redirects  # Uncomment for local testing
+}
+
+# Main site configuration
+{$DOMAIN:localhost} {
+    # ========================================================================
+    # TLS Configuration
+    # ========================================================================
+    tls {
+        protocols tls1.2 tls1.3
+        ciphers TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256 TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256 TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384 TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384 TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256 TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256
+    }
+
+    # ========================================================================
+    # Security Headers
+    # ========================================================================
+    header {
+        # Enable HSTS
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+
+        # Prevent clickjacking
+        X-Frame-Options "DENY"
+
+        # Prevent MIME sniffing
+        X-Content-Type-Options "nosniff"
+
+        # XSS Protection
+        X-XSS-Protection "1; mode=block"
+
+        # Content Security Policy (TEMPEST Class C approved)
+        Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' ws: wss:; frame-ancestors 'none'"
+
+        # Referrer Policy
+        Referrer-Policy "no-referrer-when-downgrade"
+
+        # Permissions Policy
+        Permissions-Policy "geolocation=(), microphone=(), camera=(), payment=()"
+
+        # Remove server identification
+        -Server
+        -X-Powered-By
+    }
+
+    # ========================================================================
+    # Rate Limiting
+    # ========================================================================
+    rate_limit {
+        zone api {
+            key {remote_host}
+            events 100
+            window 1m
+        }
+
+        zone docking {
+            key {remote_host}
+            events 10
+            window 1m
+        }
+
+        zone auth {
+            key {remote_host}
+            events 5
+            window 1m
+        }
+    }
+
+    # ========================================================================
+    # Authentication for Admin Endpoints
+    # ========================================================================
+    @admin {
+        path /api/admin/*
+    }
+
+    basicauth @admin {
+        {$CADDY_ADMIN_USER:admin} {$CADDY_ADMIN_PASSWORD}
+    }
+
+    # ========================================================================
+    # API Proxy
+    # ========================================================================
+    @api {
+        path /api/*
+    }
+
+    handle @api {
+        rate_limit {$DOMAIN:localhost}_api
+
+        reverse_proxy zeropain-api:8000 {
+            # Health checks
+            health_uri /api/health
+            health_interval 30s
+            health_timeout 5s
+
+            # Load balancing (if multiple instances)
+            lb_policy least_conn
+
+            # Headers
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+            header_up X-Forwarded-Host {host}
+
+            # Timeouts
+            transport http {
+                read_timeout 5m
+                write_timeout 5m
+                dial_timeout 30s
+            }
+        }
+    }
+
+    # ========================================================================
+    # WebSocket Proxy (for real-time updates)
+    # ========================================================================
+    @websocket {
+        path /ws/*
+        header Connection *Upgrade*
+        header Upgrade websocket
+    }
+
+    handle @websocket {
+        reverse_proxy zeropain-api:8000 {
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+
+            transport http {
+                read_timeout 24h  # Long timeout for WebSocket
+            }
+        }
+    }
+
+    # ========================================================================
+    # Docking Endpoint (stricter rate limit)
+    # ========================================================================
+    @docking {
+        path /api/docking/*
+    }
+
+    handle @docking {
+        rate_limit {$DOMAIN:localhost}_docking
+        reverse_proxy zeropain-api:8000
+    }
+
+    # ========================================================================
+    # Auth Endpoint (strictest rate limit)
+    # ========================================================================
+    @auth {
+        path /api/auth/*
+    }
+
+    handle @auth {
+        rate_limit {$DOMAIN:localhost}_auth
+        reverse_proxy zeropain-api:8000
+    }
+
+    # ========================================================================
+    # Static Files & SPA (React Frontend)
+    # ========================================================================
+    handle {
+        # Enable compression
+        encode zstd gzip
+
+        # Reverse proxy to frontend
+        reverse_proxy zeropain-web:80 {
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+        }
+    }
+
+    # ========================================================================
+    # Logging
+    # ========================================================================
+    log {
+        output file /data/access.log {
+            roll_size 100mb
+            roll_keep 10
+            roll_keep_for 720h
+        }
+        format json
+        level INFO
+    }
+
+    # Error pages
+    handle_errors {
+        @404 {
+            expression {http.error.status_code} == 404
+        }
+        rewrite @404 /404.html
+
+        @500 {
+            expression {http.error.status_code} >= 500
+        }
+        rewrite @500 /500.html
+    }
+}
+
+# Redirect www to non-www
+www.{$DOMAIN:localhost} {
+    redir https://{$DOMAIN:localhost}{uri} permanent
+}
