@@ -18,7 +18,7 @@ class CompoundProfile:
     ki_allosteric1: float  # nM - primary allosteric site
     ki_allosteric2: float  # nM - secondary allosteric site
     g_protein_bias: float  # G-protein pathway bias
-    beta_arrestin_bias: float  # �-arrestin pathway bias
+    beta_arrestin_bias: float  # β-arrestin pathway bias
     t_half: float  # hours - elimination half-life
     bioavailability: float  # 0-1 - oral bioavailability
     intrinsic_activity: float  # 0-1 - receptor activation efficacy
@@ -26,6 +26,8 @@ class CompoundProfile:
     prevents_withdrawal: bool = False
     reverses_tolerance: bool = False
     receptor_type: str = "MOR"  # MOR, DOR, KOR
+    pharmacological_activities: List[str] = field(default_factory=list)
+    mechanism_notes: str = ""
 
     def to_dict(self) -> Dict:
         """Convert to dictionary for serialization"""
@@ -42,7 +44,9 @@ class CompoundProfile:
             'tolerance_rate': self.tolerance_rate,
             'prevents_withdrawal': self.prevents_withdrawal,
             'reverses_tolerance': self.reverses_tolerance,
-            'receptor_type': self.receptor_type
+            'receptor_type': self.receptor_type,
+            'pharmacological_activities': self.pharmacological_activities,
+            'mechanism_notes': self.mechanism_notes,
         }
 
     @classmethod
@@ -58,7 +62,7 @@ class CompoundProfile:
         if self.intrinsic_activity > 0.7 and self.g_protein_bias < 5:
             score -= 20
 
-        # Penalize high �-arrestin
+        # Penalize high β-arrestin
         if self.beta_arrestin_bias > 0.5:
             score -= 30
 
@@ -97,10 +101,11 @@ class CompoundDatabase:
     def __init__(self):
         self.compounds = self._initialize_compounds()
         self.custom_compounds = {}
+        self.external_sources = self._source_list()
 
     def _initialize_compounds(self) -> Dict[str, CompoundProfile]:
         """Initialize database with known compounds"""
-        return {
+        compounds = {
             # FDA-approved compounds
             'Morphine': CompoundProfile(
                 name='Morphine',
@@ -256,6 +261,26 @@ class CompoundDatabase:
             ),
         }
 
+        activity_map = {
+            'Morphine': ['MOR full agonist', 'DOR weak agonist', 'KOR weak agonist'],
+            'Oxycodone': ['MOR full agonist', 'Norepinephrine reuptake inhibition'],
+            'Fentanyl': ['MOR full agonist'],
+            'Buprenorphine': ['MOR partial agonist', 'KOR antagonist', 'ORL-1 agonist'],
+            'Oliceridine': ['G-protein biased MOR agonist'],
+            'Tapentadol': ['MOR agonist', 'Norepinephrine reuptake inhibition'],
+            'Tramadol': ['MOR weak agonist', 'SNRI'],
+            'PZM21': ['Biased MOR agonist'],
+            'SR-17018': ['Biased MOR agonist', 'Tolerance reversal'],
+            'SR-14968': ['Biased MOR agonist'],
+            'Mitragynine': ['Partial MOR agonist', 'KOR antagonist'],
+            'Nalbuphine': ['KOR agonist', 'MOR antagonist'],
+        }
+        for name, activities in activity_map.items():
+            if name in compounds:
+                compounds[name].pharmacological_activities = activities
+
+        return compounds
+
     def add_custom_compound(self, compound: CompoundProfile):
         """Add a custom compound to the database"""
         self.custom_compounds[compound.name] = compound
@@ -324,79 +349,99 @@ class CompoundDatabase:
             for name, comp_data in data['custom'].items():
                 self.custom_compounds[name] = CompoundProfile.from_dict(comp_data)
 
+    def hydrate_from_sources(self, name: str, sources: Optional[List[str]] = None) -> Optional[CompoundProfile]:
+        """Fetch compound data from configured external JSON sources."""
+
+        endpoints = sources or self.external_sources
+        if not endpoints:
+            return None
+
+        for endpoint in endpoints:
+            try:
+                if endpoint.startswith("http"):
+                    import requests  # type: ignore
+
+                    response = requests.get(endpoint, timeout=5)
+                    response.raise_for_status()
+                    data = response.json()
+                else:
+                    with open(endpoint, 'r', encoding='utf-8') as f:
+                        data = json.load(f)
+            except Exception:
+                continue
+
+            comp_data = data.get(name) or data.get('compounds', {}).get(name)
+            if comp_data:
+                return CompoundProfile.from_dict(comp_data)
+
+        return None
+
+    def _source_list(self) -> List[str]:
+        raw = os.environ.get("ZP_COMPOUND_SOURCES", "")
+        return [entry.strip() for entry in raw.split(',') if entry.strip()]
+
 
 class PharmacokineticModel:
     """PK/PD modeling for opioid compounds"""
 
     @staticmethod
-    def calculate_concentration(dose: float, time: float, t_half: float,
-                               bioavailability: float, volume_dist: float = 50.0) -> float:
-        """Calculate plasma concentration at given time
-
-        Args:
-            dose: Dose in mg
-            time: Time since dose in hours
-            t_half: Elimination half-life in hours
-            bioavailability: Oral bioavailability (0-1)
-            volume_dist: Volume of distribution in L
-
-        Returns:
-            Plasma concentration in ng/mL
-        """
+    def calculate_concentration(
+        dose: float, time: float, t_half: float, bioavailability: float,
+        volume_dist: float = 50.0
+    ) -> float:
+        """Calculate plasma concentration at given time."""
         k_e = 0.693 / t_half  # Elimination rate constant
-        C_0 = (dose * bioavailability * 1000) / volume_dist  # Initial concentration
-        C_t = C_0 * np.exp(-k_e * time)
-        return C_t
+        c_0 = (dose * bioavailability * 1000) / volume_dist  # Initial concentration
+        return c_0 * np.exp(-k_e * time)
 
     @staticmethod
-    def calculate_receptor_occupancy(concentration: float, ki: float,
-                                    intrinsic_activity: float) -> float:
-        """Calculate receptor occupancy and activation
-
-        Args:
-            concentration: Plasma concentration in nM
-            ki: Binding affinity in nM
-            intrinsic_activity: Intrinsic efficacy (0-1)
-
-        Returns:
-            Receptor activation level (0-1)
-        """
+    def calculate_receptor_occupancy(
+        concentration: float, ki: float, intrinsic_activity: float
+    ) -> float:
+        """Calculate receptor occupancy and activation."""
         if ki == float('inf'):
             return 0.0
 
         occupancy = concentration / (concentration + ki)
-        activation = occupancy * intrinsic_activity
-        return activation
+        return occupancy * intrinsic_activity
 
     @staticmethod
     def calculate_analgesia(g_activation: float, tolerance: float = 0.0) -> float:
-        """Calculate analgesic effect
-
-        Args:
-            g_activation: G-protein pathway activation (0-1)
-            tolerance: Tolerance level (0-1)
-
-        Returns:
-            Analgesic effect (0-1)
-        """
+        """Calculate analgesic effect."""
         return g_activation * (1 - tolerance)
 
     @staticmethod
     def calculate_side_effects(beta_activation: float) -> Dict[str, float]:
-        """Calculate side effect probabilities
-
-        Args:
-            beta_activation: �-arrestin pathway activation (0-1)
-
-        Returns:
-            Dictionary of side effect probabilities
-        """
+        """Calculate side effect probabilities."""
         return {
             'respiratory_depression': beta_activation * 0.3,
             'constipation': beta_activation * 0.6,
             'nausea': beta_activation * 0.4,
-            'sedation': beta_activation * 0.5
+            'sedation': beta_activation * 0.5,
         }
+
+    @staticmethod
+    def calculate_neurotransmitter_release(
+        g_activation: float, beta_activation: float
+    ) -> Dict[str, float]:
+        """Estimate neurotransmitter release downstream of receptor activation."""
+        g_act = max(0.0, min(1.0, g_activation))
+        beta_act = max(0.0, min(1.0, beta_activation))
+
+        endorphins = g_act * 120.0
+        dopamine = (g_act * 60.0) + (beta_act * 15.0)
+        serotonin = (g_act * 25.0) + (beta_act * 35.0)
+        norepinephrine = beta_act * 40.0
+        substance_p = max(0.0, 20.0 * (1.0 - g_act))
+
+        return {
+            'endorphins': endorphins,
+            'dopamine': dopamine,
+            'serotonin': serotonin,
+            'norepinephrine': norepinephrine,
+            'substance_p': substance_p,
+        }
+
 
 
 class CompoundAnalyzer:
