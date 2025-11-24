@@ -24,7 +24,10 @@ WORKDIR /app
 
 COPY requirements/base.txt requirements/web.txt requirements/database.txt /app/requirements/
 COPY zeropain /app/zeropain
+COPY src /app/src
 COPY DOCKER_DEPLOYMENT_PLAN.md /app/DOCKER_DEPLOYMENT_PLAN.md
+
+ENV PYTHONPATH="/app/src:${PYTHONPATH}"
 
 ENV HOST=0.0.0.0
 ENV PORT=8000

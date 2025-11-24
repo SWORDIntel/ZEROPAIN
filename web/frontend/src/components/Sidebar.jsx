@@ -14,11 +14,23 @@ export default function Sidebar() {
           <NavLink className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} to="/compounds">
             Compounds
           </NavLink>
+          <NavLink className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} to="/builder">
+            Builder
+          </NavLink>
           <NavLink className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} to="/docking">
             Docking
           </NavLink>
           <NavLink className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} to="/admet">
             ADMET
+          </NavLink>
+          <NavLink className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} to="/simulation">
+            Simulation
+          </NavLink>
+          <NavLink className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} to="/runs">
+            Runs
+          </NavLink>
+          <NavLink className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} to="/settings">
+            Settings
           </NavLink>
         </nav>
       ) : (

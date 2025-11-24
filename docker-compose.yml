@@ -10,6 +10,8 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./docker/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
+    networks:
+      - medical
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-zeropain}"]
       interval: 10s
@@ -22,6 +24,8 @@ services:
     command: ["redis-server", "--appendonly", "yes"]
     volumes:
       - redisdata:/data
+    networks:
+      - medical
     restart: unless-stopped
 
   zeropain-api:
@@ -51,10 +55,10 @@ services:
       DEFAULT_ADMIN_PASSWORD_FILE: ${DEFAULT_ADMIN_PASSWORD_FILE:-}
       ADMIN_BOOTSTRAP_SECRET_FILE: ${ADMIN_BOOTSTRAP_SECRET_FILE:-}
       AUTO_CREATE_ADMIN: ${AUTO_CREATE_ADMIN:-false}
-    ports:
-      - "8000:8000"
     secrets:
       - admin_bootstrap_secret
+    networks:
+      - medical
     restart: unless-stopped
 
   zeropain-web:
@@ -63,6 +67,8 @@ services:
       dockerfile: docker/Dockerfile.web
     depends_on:
       - zeropain-api
+    networks:
+      - medical
     restart: unless-stopped
 
   caddy:
@@ -79,6 +85,9 @@ services:
     depends_on:
       - zeropain-web
       - zeropain-api
+    networks:
+      - edge
+      - medical
     restart: unless-stopped
 
 volumes:
@@ -86,6 +95,11 @@ volumes:
   redisdata:
   caddy_data:
   caddy_config:
+
+networks:
+  edge:
+  medical:
+    internal: true
 
 secrets:
   admin_bootstrap_secret:
