@@ -11,15 +11,24 @@ from sqlmodel import Session
 from .auth import ensure_default_admin, get_current_user
 from .database import engine, get_session, init_db
 from .routes import auth as auth_routes
+from .routes import operations as ops_routes
 
 INTEL_DEVICE = os.getenv("INTEL_DEVICE", "CPU")
+ALLOWED_ORIGINS = [
+    o.strip()
+    for o in os.getenv(
+        "ALLOWED_ORIGINS", "http://localhost:4173,http://localhost,https://localhost"
+    ).split(",")
+    if o
+]
 
 app = FastAPI(title="ZeroPain API", version="0.1.0")
 app.include_router(auth_routes.router, prefix="/api")
+app.include_router(ops_routes.router, prefix="/api")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

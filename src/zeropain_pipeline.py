@@ -11,22 +11,47 @@ from typing import List, Optional, Dict
 import json
 
 # Import core modules
+from utils.dependency_bootstrap import ensure_dependencies
+
+ensure_dependencies(["rich", "requests", "matplotlib"])
+
 from opioid_analysis_tools import CompoundDatabase, CompoundProfile, CompoundAnalyzer
+from pipeline.distributed_runner import DistributedRunner
+from utils.experiment_tracking import ExperimentTracker
 from opioid_optimization_framework import (
     ProtocolOptimizer, ProtocolConfig, run_local_optimization, OptimizationResult
 )
-from patient_simulation_100k import PopulationSimulation, run_100k_simulation
+from patient_simulation_100k import (
+    PopulationSimulation,
+    PatientGenerationConfig,
+    run_100k_simulation,
+)
 from zeropain_tui import ZeroPainTUI
 
 
 class ZeroPainPipeline:
     """Main pipeline orchestrator"""
 
-    def __init__(self, use_intel: bool = False, verbose: bool = True):
+    def __init__(self, use_intel: bool = False, verbose: bool = True, backend: str = 'local', checkpoint_dir: str = 'runs', run_id: Optional[str] = None, resume: bool = True, batch_size: int = 256, tracker: Optional[ExperimentTracker] = None):
         self.use_intel = use_intel
         self.verbose = verbose
         self.db = CompoundDatabase()
         self.analyzer = CompoundAnalyzer(self.db)
+        self.tracker = tracker or ExperimentTracker(base_dir=checkpoint_dir, run_id=run_id)
+        self.tracker.upsert_metadata({
+            "backend": backend,
+            "resume": resume,
+            "batch_size": batch_size,
+        })
+        self.runner = DistributedRunner(
+            backend=backend,
+            checkpoint_dir=checkpoint_dir,
+            run_id=self.tracker.run_id,
+            resume=resume,
+            num_workers=None,
+        )
+        self.batch_size = batch_size
+        self.resume = resume
 
         # Load custom compounds if available
         custom_file = 'custom_compounds.json'
@@ -34,6 +59,9 @@ class ZeroPainPipeline:
             self.db.import_from_json(custom_file)
             if self.verbose:
                 print(f"✓ Loaded custom compounds from {custom_file}")
+
+        if self.verbose:
+            print(f"Run ID: {self.tracker.run_id}")
 
     def run_analysis(self, compound_names: List[str]) -> Dict:
         """Run compound analysis"""
@@ -100,8 +128,20 @@ class ZeroPainPipeline:
 
         if output_file:
             self._save_optimization_results(result, output_file)
+            self.tracker.log_artifact('optimization_results.json', result.optimal_protocol.to_dict())
             if self.verbose:
                 print(f"\n✓ Results saved to {output_file}")
+
+        self.tracker.log_metrics('optimization', {
+            'success_rate': result.success_rate,
+            'tolerance_rate': result.tolerance_rate,
+            'addiction_rate': result.addiction_rate,
+            'withdrawal_rate': result.withdrawal_rate,
+            'safety_score': result.safety_score,
+            'therapeutic_window': result.therapeutic_window,
+            'iterations': result.iterations,
+            'computation_time': result.computation_time,
+        })
 
         return result
 
@@ -109,6 +149,7 @@ class ZeroPainPipeline:
                       protocol: ProtocolConfig,
                       n_patients: int = 100000,
                       duration_days: int = 90,
+                      generation_config: Optional[PatientGenerationConfig] = None,
                       output_file: Optional[str] = None) -> Dict:
         """Run patient simulation"""
         if self.verbose:
@@ -121,12 +162,16 @@ class ZeroPainPipeline:
             print(f"\nPatients: {n_patients:,}")
             print(f"Duration: {duration_days} days")
 
-        simulation = PopulationSimulation(self.db, use_multiprocessing=True)
+        simulation = PopulationSimulation(self.db, use_multiprocessing=self.runner.backend == 'local')
 
         results = simulation.run_simulation(
             protocol,
             n_patients=n_patients,
-            duration_days=duration_days
+            duration_days=duration_days,
+            generation_config=generation_config,
+            runner=self.runner,
+            checkpoint_stage='simulation',
+            batch_size=self.batch_size
         )
 
         if self.verbose:
@@ -137,6 +182,22 @@ class ZeroPainPipeline:
                 json.dump(results, f, indent=2)
             if self.verbose:
                 print(f"\n✓ Results saved to {output_file}")
+
+        self.tracker.log_metrics('simulation', {
+            'success_rate': results.get('success_rate'),
+            'tolerance_rate': results.get('tolerance_rate'),
+            'addiction_rate': results.get('addiction_rate'),
+            'withdrawal_rate': results.get('withdrawal_rate'),
+            'adverse_event_rate': results.get('adverse_event_rate'),
+            'avg_pain_score': results.get('avg_pain_score'),
+            'avg_analgesia': results.get('avg_analgesia'),
+            'avg_side_effects': results.get('avg_side_effects'),
+            'avg_g_activation': results.get('avg_g_activation'),
+            'avg_beta_activation': results.get('avg_beta_activation'),
+            'avg_quality_of_life': results.get('avg_quality_of_life'),
+            'computation_time': results.get('computation_time'),
+            **{k: v for k, v in results.items() if k.startswith('nt_')},
+        })
 
         return results
 
@@ -154,6 +215,16 @@ class ZeroPainPipeline:
 
         # Create output directory
         os.makedirs(output_dir, exist_ok=True)
+
+        self.tracker.record_config({
+            'compounds': compounds,
+            'n_patients_optimization': n_patients_optimization,
+            'n_patients_simulation': n_patients_simulation,
+            'max_iterations': max_iterations,
+            'use_intel': self.use_intel,
+            'backend': self.runner.backend,
+            'resume': self.resume,
+        })
 
         # Step 1: Compound Analysis
         analysis_results = self.run_analysis(compounds)
@@ -194,6 +265,7 @@ class ZeroPainPipeline:
         final_file = os.path.join(output_dir, 'pipeline_complete.json')
         with open(final_file, 'w') as f:
             json.dump(final_results, f, indent=2)
+        self.tracker.log_artifact('pipeline_complete.json', final_results)
 
         if self.verbose:
             print("\n" + "="*70)
@@ -331,6 +403,17 @@ Examples:
                        help='Output directory for results (default: results)')
     parser.add_argument('--quiet', action='store_true',
                        help='Suppress verbose output')
+    parser.add_argument('--backend', choices=['local', 'ray', 'dask'], default='local',
+                       help='Execution backend for distributed runs (default: local)')
+    parser.add_argument('--checkpoint-dir', type=str, default='runs',
+                       help='Directory for checkpoints and artifacts (default: runs)')
+    parser.add_argument('--run-id', type=str,
+                       help='Optional run identifier for resuming a previous run')
+    parser.add_argument('--no-resume', dest='resume', action='store_false',
+                       help='Disable checkpoint resume')
+    parser.add_argument('--batch-size', type=int, default=256,
+                       help='Batch size for distributed simulation shards (default: 256)')
+    parser.set_defaults(resume=True)
 
     args = parser.parse_args()
 
@@ -348,7 +431,12 @@ Examples:
     # Create pipeline
     pipeline = ZeroPainPipeline(
         use_intel=args.intel,
-        verbose=not args.quiet
+        verbose=not args.quiet,
+        backend=args.backend,
+        checkpoint_dir=args.checkpoint_dir,
+        run_id=args.run_id,
+        resume=args.resume,
+        batch_size=args.batch_size,
     )
 
     # Run requested operations

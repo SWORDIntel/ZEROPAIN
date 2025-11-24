@@ -10,6 +10,7 @@ body {
               radial-gradient(circle at 80% 0%, rgba(0, 255, 136, 0.12), transparent 30%),
               #0a1118;
   min-height: 100vh;
+  transition: background 300ms ease-in-out;
 }
 
 a {
@@ -59,10 +60,18 @@ a {
   padding: 16px;
   margin-bottom: 16px;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  transition: transform 200ms ease, box-shadow 200ms ease, border-color 200ms ease;
 }
 
 .card h3 {
   margin-top: 0;
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
 }
 
 .button {
@@ -105,10 +114,22 @@ a {
   border-collapse: collapse;
 }
 
+.table-wrapper {
+  overflow-x: auto;
+}
+
 .table th, .table td {
   text-align: left;
   padding: 10px;
   border-bottom: 1px solid rgba(0, 217, 255, 0.1);
+}
+
+.table tr:hover {
+  background: rgba(0, 217, 255, 0.05);
+}
+
+.active-row {
+  background: rgba(0, 217, 255, 0.08);
 }
 
 .badge {
@@ -125,4 +146,93 @@ a {
   display: flex;
   gap: 8px;
   align-items: center;
+}
+
+.grid {
+  display: grid;
+  gap: 12px;
+}
+
+.grid.two {
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+
+.grid.three {
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.grid.full-span {
+  grid-column: 1 / -1;
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: #b9cde4;
+}
+
+.eyebrow {
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #7ba0bf;
+}
+
+.muted {
+  color: #88a3b7;
+}
+
+.error-text {
+  color: #ffb3b3;
+}
+
+.table .error-text {
+  font-weight: 600;
+}
+
+.table .badge {
+  font-weight: 600;
+}
+
+.card.nested {
+  border-style: dashed;
+}
+
+.stat {
+  background: rgba(0, 217, 255, 0.08);
+  border: 1px solid rgba(0, 217, 255, 0.2);
+  border-radius: 10px;
+  padding: 12px;
+}
+
+.stat-value {
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.code-block {
+  background: rgba(5, 10, 15, 0.8);
+  border: 1px solid rgba(0, 217, 255, 0.1);
+  border-radius: 10px;
+  padding: 12px;
+  max-height: 260px;
+  overflow: auto;
+  color: #b9cde4;
+}
+
+.input.compact {
+  max-width: 240px;
+}
+
+.status-line {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.reduced-motion *, .reduced-motion {
+  transition: none !important;
+  animation: none !important;
 }

@@ -1,264 +1,71 @@
 # ZeroPain Therapeutics Framework
 
-Version 3.0 Python 3.8+ Proprietary License Zero Addiction Zero Tolerance Zero
-Withdrawal
-
-Revolutionary multi-compound opioid therapy achieving zero addiction, zero
-tolerance, and zero withdrawal while maintaining >95% analgesic efficacy.
-
-  * Overview
-  * Core Innovation
-  * Quick Start
-  * Results
-  * Structure
-  * Science
-  * Performance
-  * Documentation
-
-## 🎯 Project Overview
-
-The ZeroPain Therapeutics Framework is a comprehensive computational platform
-for optimizing multi-compound opioid protocols. Using advanced
-pharmacokinetic/pharmacodynamic modeling and large-scale patient simulation,
-we demonstrate the theoretical feasibility of achieving:
-
-🚫
-
-### Zero Tolerance Development
-
-SR-17018 prevents and reverses opioid tolerance
-
-✨
-
-### Zero Withdrawal Symptoms
-
-Sustained G-protein signaling eliminates withdrawal
-
-🛡️
-
-### Zero Addiction Liability
-
-β-arrestin pathway suppression reduces addiction risk
-
-💊
-
-### Maintained Analgesia
-
->70% treatment success with optimal pain control
-
-## 🧬 Core Innovation: Triple-Compound Protocol
-
-### Primary Compounds
-
-Compound | Dose | Frequency | Mechanism | Half-life  
----|---|---|---|---  
-**SR-17018** | 16.17 mg | BID | Tolerance protection & withdrawal prevention | 7h  
-**SR-14968** | 25.31 mg | QD | Sustained G-protein signaling (10x TRV130 bias) | 12h  
-**Oxycodone** | 5.07 mg | Q6H | Immediate analgesia via orthosteric binding | 3.5h  
-  
-### Mechanistic Synergy
-
-  1. **Allosteric Modulation** : SR-17018 and SR-14968 bind allosteric sites, modulating receptor conformation
-  2. **G-Protein Bias** : Preferential activation of analgesic pathways over side-effect pathways
-  3. **Competitive Inhibition** : SR-17018 can modulate SR-14968 effects for optimal receptor dynamics
-  4. **Temporal Optimization** : Different half-lives provide sustained, stable analgesia
-
-## 🚀 Quick Start
-
-### Prerequisites
-
-  * Python 3.8+
-  * 16+ GB RAM (recommended for 100k simulation)
-  * 22 CPU cores (recommended for optimal performance)
-
-### Installation
-
-#### 1\. Automated Setup (Recommended)
-
-    
-    
-    chmod +x comprehensive_setup_script.sh
-    ./comprehensive_setup_script.sh
-
-#### 2\. Manual Setup
-
-    
-    
-    python3 -m venv zeropain_env
-    source zeropain_env/bin/activate
-    pip install -r requirements.txt
-    export PYTHONPATH="${PYTHONPATH}:$(pwd)/src"
-
-### Running Your First Simulation
-
-    
-    
-    source zeropain_env/bin/activate
-    python src/opioid_optimization_framework.py
-    python src/patient_simulation_100k.py
-    python src/opioid_analysis_tools.py
-
-### Using the Launcher Script
-
-
-
-    chmod +x zeropain.sh
-    ./zeropain.sh optimize    # Run optimization
-    ./zeropain.sh simulate    # Run patient simulation
-    ./zeropain.sh analyze     # Run parameter analysis
-    ./zeropain.sh all         # Run complete pipeline
-    ./zeropain.sh notebook    # Start Jupyter Lab
-
-## 🔐 Secure deployment, bootstrap, and Docker secrets
-
-- **Mandatory secrets**: set `SECRET_KEY` (or `SECRET_KEY_FILE`) to a strong value before starting the API. The server refuses to start with the insecure default.
-- **First-user bootstrap**: no admin is created by default. On first run, call `POST /api/auth/bootstrap` with `username`, `password`, and the `bootstrap_token` that is supplied via `ADMIN_BOOTSTRAP_SECRET` or `ADMIN_BOOTSTRAP_SECRET_FILE`. The endpoint is disabled after the first account exists.
-- **Docker secret wiring**: place your bootstrap token in `docker/secrets/admin_bootstrap_secret` (copy from the provided `.example`), and set `ADMIN_BOOTSTRAP_SECRET_FILE=/run/secrets/admin_bootstrap_secret`. Compose already mounts this secret for `zeropain-api`.
-- **Optional auto-admin (controlled)**: set `AUTO_CREATE_ADMIN=true` plus `DEFAULT_ADMIN_USERNAME` and `DEFAULT_ADMIN_PASSWORD_FILE` (or env var) if you need unattended bootstrap. Leave it `false` for maximum safety.
-
-## 📊 Expected Results
-
-Based on 100,000 patient simulations:
-
-### Primary Outcomes
-
-~70%
-
-Treatment Success Rate
-
-<5% ✅
-
-Tolerance Development (Target: <5%)
-
-<3% ✅
-
-Addiction Signs (Target: <3%)
-
-0% ✅
-
-Withdrawal Symptoms (Target: 0%)
-
-### Safety Profile
-
-  * **Therapeutic Window** : 17.87x (vs 3-5x for traditional opioids)
-  * **Respiratory Depression** : 65% reduction vs oxycodone alone
-  * **Adverse Events** : 40% reduction vs traditional protocols
-
-### Economic Impact
-
-  * **Cost per QALY** : $28,500 (vs $50,000+ traditional)
-  * **Treatment Days** : 90-day protocol
-  * **Success Rate** : 2x improvement over standard care
-
-## 🗂️ Project Structure
-
-zeropain_framework/
-
-src/ # Core source code
-
-opioid_optimization_framework.py
-
-patient_simulation_100k.py
-
-opioid_analysis_tools.py
-
-models/
-
-analysis/
-
-simulation/
-
-utils/
-
-data/ # Data files
-
-raw/
-
-processed/
-
-results/
-
-outputs/ # Generated results
-
-figures/
-
-reports/
-
-publications/
-
-notebooks/ # Jupyter notebooks
-
-configs/ # Configuration files
-
-tests/ # Test suites
-
-docs/ # Documentation
-
-## 🔬 Scientific Foundation
-
-### Pharmacological Basis
-
-#### SR-17018 (Tolerance Protector)
-
-  * Binds allosteric site 1 (Ki = 26 nM)
-  * G-protein bias: 8.2x
-  * β-arrestin bias: 0.01x (minimal)
-  * Prevents tolerance through sustained cAMP signaling
-  * Wash-resistant binding prevents withdrawal
-
-#### SR-14968 (Potency Enhancer)
-
-  * Binds allosteric site 2 (Ki = 10 nM)
-  * G-protein bias: 10.0x (highest known)
-  * β-arrestin bias: 0.1x
-  * Provides sustained analgesia with minimal side effects
-  * 24-hour duration reduces dosing frequency
-
-#### Oxycodone (Immediate Relief)
-
-  * Orthosteric site binding (Ki = 18 nM)
-  * Balanced G-protein/β-arrestin signaling
-  * Immediate onset for breakthrough pain
-  * Standard pharmacokinetics well-characterized
-
-### Computational Models
-
-  1. **Receptor Model** : Multi-site binding with allosteric interactions
-  2. **PK/PD Model** : One-compartment with first-order elimination
-  3. **Population Model** : 100,000 virtual patients with realistic variability
-  4. **Optimization** : Differential evolution with parallel processing
-
-## 📈 Performance Benchmarks
-
-### Computational Performance
-
-  * **Single Patient Simulation** : <0.1 seconds
-  * **100k Population** : 2-3 minutes (22 cores)
-  * **Parameter Optimization** : 15-30 minutes (1000 iterations)
-  * **Memory Usage** : 8-16 GB (100k patients)
-
-### Accuracy Validation
-
-  * **Cross-validation R²** : >0.95
-  * **Clinical correlation** : Validated against published data
-  * **Sensitivity analysis** : Robust to parameter variations
-  * **Monte Carlo validation** : 10,000 bootstrap samples
-
-## 📖 Documentation
-
-Getting Started Guide API Reference Research Papers Troubleshooting
-
-### Support & Contact
-
-  * **Documentation** : [docs.zeropain.com](https://docs.zeropain.com)
-  * **Issues** : [GitHub Issues](https://github.com/zeropain/therapeutics-framework/issues)
-  * **Email** : support@zeropain.com
-  * **Slack** : [ZeroPain Community](https://zeropain.slack.com)
-
-**ZeroPain Therapeutics Framework v3.0**
-
-Revolutionizing Pain Management Through Computational Innovation
-
-© 2024 ZeroPain Therapeutics. All rights reserved.
-
-[Made with Python](https://www.python.org/) | [Powered by Science](https://zeropain.com) | [Zero Tolerance](https://zeropain.com)
+ZeroPain is a distributed pharmacology lab that optimizes multi-compound opioid protocols with rich patient simulations, auditable experiment tracking, and dual UIs (Rich terminal + 1:1 web experience). It targets Intel NPU/OpenVINO, Arc GPU, and CPU backends, runs cleanly in Docker by default, and keeps every run tamper-evident.
+
+## Highlights
+- **Distributed, resumable pipeline** with Ray/Dask/local backends, checkpointed batches, and accelerator-aware scheduling.
+- **IA3-grade auditing**: every run is signed (SHA-384), logged with who/when/where metadata, and verified when loaded in dashboards.
+- **Dual UI surfaces**: Rich TUI plus a 1:1 web interface (via `zeropain-web`) so the same workflows are available in-browser through Caddy on the internal medical network.
+- **Patient + medication fine-tuning**: age/weight/sex distributions, comorbidities, pre-existing medications, baseline tolerance, and medication exposure metrics.
+- **Compound builder & library**: edit templates or create custom compounds with receptor affinities, pharmacological activities, and PK/PD knobs; external sources can hydrate missing entries.
+- **Visualization-ready**: dependency bootstrapper auto-installs Rich and charting libs; refresh/animation controls stay CPU-friendly and TEMPEST Class C themed.
+
+## Architecture & Services
+- **Pipeline + CLI** (`src/zeropain_pipeline.py`): orchestrates optimization, simulation, and analysis with `--backend`, `--batch-size`, `--resume`, and accelerator hints for OpenVINO/Arc/CPU.
+- **Experiment Tracker** (`src/utils/experiment_tracking.py`): stores run metadata, metrics, artifacts, and SHA-384 signatures in `runs/<run-id>/`; dashboards verify signatures before viewing.
+- **Distributed Runner** (`src/pipeline/distributed_runner.py`): shards work, persists checkpoints, retries failed shards, and falls back to local execution if Ray/Dask are unavailable.
+- **Rich TUI** (`src/zeropain_tui.py`): bannered terminal UI covering compound browsing, builder, optimization, simulation, settings, and run dashboards.
+- **Web UI (1:1 with TUI)** (`web/frontend`): mirrors the TUI flows (compound browser/builder, simulation, run dashboard, settings) behind Caddy for HTTPS by default.
+
+## Quick Start (Docker-first)
+Docker Compose is the canonical path and runs API + web + dependencies with TLS-friendly Caddy fronting the web UI.
+
+```bash
+# Clone & prepare secrets
+cp docker/secrets/admin_bootstrap_secret.example docker/secrets/admin_bootstrap_secret
+cp .env.example .env  # adjust INTEL_DEVICE, SECRET_KEY, DOMAIN, etc.
+
+# Launch the full stack
+docker compose up --build
+```
+
+- Web UI: https://localhost (or your `DOMAIN`), mirroring the Rich TUI.
+- API: https://localhost/api (served internally on the medical network and proxied by Caddy).
+
+**Network segmentation:** the stack uses an internal `medical` Docker network for API/web/database/Redis traffic. Caddy is joined to both `edge` (exposed ports) and `medical` (internal) so only Caddy can reach the app services; the API container no longer binds a host port directly.
+- Data: Postgres + Redis volumes, run artifacts under `runs/` (bind-mounted by Dockerfile).
+
+## Local Development (fallback)
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+export PYTHONPATH="${PYTHONPATH}:$(pwd)/src"
+```
+The dependency bootstrapper loads Rich/visualization packages on-demand. Run `python src/zeropain_tui.py` for the terminal UI or `python -m src.zeropain_pipeline --help` for CLI options.
+
+## Running Workflows
+- **Rich TUI**: `python src/zeropain_tui.py` → navigate compound browser, builder, optimization, and simulations. Settings panel controls backend (local/Ray/Dask), resume flag, batch size, run ID, checkpoint directory, animation/refresh cadence.
+- **Web UI**: available via Docker stack; presents the same flows (compound browse/compare/build, protocol optimization, patient simulation, run dashboard, settings with animation/poll controls) with identical semantics as the TUI.
+- **Pipeline CLI examples**:
+  - `python -m src.zeropain_pipeline --mode optimize --backend ray --batch-size 5000 --resume`
+  - `python -m src.zeropain_pipeline --mode simulate --patients 100000 --checkpoint-dir runs/latest/checkpoints`
+  - `python src/opioid_analysis_tools.py --input runs/<run-id>/artifacts`
+
+## Experiment Tracking, Audit, and Integrity
+- Runs emit metadata (user, timestamps, backend, hardware hints), configs, metrics, and artifacts into `runs/<run-id>/`.
+- Each run is hashed (SHA-384) and signed; dashboards and loaders verify signatures before displaying results.
+- Metrics append to `metrics.jsonl`; checkpoints live under `checkpoints/`; signatures and audit logs sit alongside artifacts for chain-of-custody.
+
+## Population, Medication, and Pharmacology Controls
+- Configure age, weight, sex ratio, comorbidities, and medication prevalence with baseline tolerance modeling.
+- Pharmacological activities and receptor affinities are editable per compound; the builder supports custom values when a compound is missing from the library.
+- Simulations report receptor engagement, neurotransmitter release, and medication exposure metrics; OpenVINO/Arc hints are applied when available.
+
+## Visualization & Performance
+- Rich tables and charts are available in both UIs; animations can be enabled/disabled, and refresh cadence is tunable to avoid CPU spikes.
+- Distributed runs checkpoint per batch; resuming skips completed shards and retries failures with deterministic seeds.
+
+## Support & Docs
+- Quickstarts: `QUICKSTART.md`, `USAGE.md`, `DOCKER_DEPLOYMENT_PLAN.md`, `ENHANCEMENT_PLAN.md` for scaling guidance.
+- Issues/ideas: file in this repository. Caddy/WireGuard/mtls ready for Xen 10 hosts with Docker + Portainer.
