@@ -153,6 +153,7 @@ def simulate(payload: SimulationRequest, user: Dict = Depends(get_current_user))
     tracker.log_metrics("simulation", metrics.dict())
     tracker.upsert_metadata({"backend": payload.backend, "user": user.get("username")})
     tracker.append_audit_event("simulation_requested", {"patient_count": payload.patient_count})
+    tracker._refresh_signature()
     ok, msg = tracker.verify_signature()
     return SimulationResponse(
         run_id=tracker.run_id,
@@ -168,6 +169,7 @@ def save_settings(payload: SettingsPayload, user: Dict = Depends(get_current_use
     tracker = ExperimentTracker(base_dir=str(RUN_BASE_DIR), run_id=f"settings-{int(time.time())}")
     tracker.record_config(payload.dict())
     tracker.append_audit_event("settings_saved", {"user": user.get("username")})
+    tracker._refresh_signature()
     ok, msg = tracker.verify_signature()
     return SettingsResponse(saved=True, signature_valid=ok, signature_status=msg, run_id=tracker.run_id)
 
@@ -222,6 +224,7 @@ def add_custom_compound(payload: CustomCompoundRequest, user: Dict = Depends(get
     tracker = ExperimentTracker(base_dir=str(RUN_BASE_DIR), run_id=payload.run_id)
     tracker.log_artifact(f"compound_{payload.name}.json", profile.to_dict())
     tracker.append_audit_event("custom_compound_saved", {"name": payload.name, "user": user.get("username")})
+    tracker._refresh_signature()
     ok, msg = tracker.verify_signature()
     return CustomCompoundResponse(
         run_id=tracker.run_id,
