@@ -18,8 +18,8 @@ ZeroPain is a distributed pharmacology lab that optimizes multi-compound opioid 
 - **Web UI (1:1 with TUI)** (`web/frontend`): mirrors the TUI flows (compound browser/builder, simulation, run dashboard, settings) behind Caddy for HTTPS by default.
 
 ## Focused SR Initiatives & MLOps
-- **SR-17018, SR-15968, OPID**: See `doc/mlops_pipeline_sr_cases.md` for a dedicated, no-tolerance/no-addiction pipeline with SR-tagged objectives, safety gates, and fixed inter-module APIs (compound, simulation, optimization, metrics).
-- **Opioid pre-selection dashboard**: `doc/opioid_preselection_dashboard.md` lists the canonical compounds (SR-17018, Buprenorphine, Oliceridine, Tapentadol, PZM21, Tramadol, OPID) with addiction/tolerance/analgesia metrics and charting patterns for receptor-aware analysis.
+- **SR-17018, SR-15968, SR-14968, OPID**: See `doc/mlops_pipeline_sr_cases.md` for a dedicated, no-tolerance/no-addiction pipeline with SR-tagged objectives, safety gates, and fixed inter-module APIs (compound, simulation, optimization, metrics).
+- **Opioid pre-selection dashboard**: `doc/opioid_preselection_dashboard.md` lists the canonical compounds (SR-17018, SR-14968, Buprenorphine, Oliceridine, Tapentadol, PZM21, Tramadol, OPID) with addiction/tolerance/analgesia metrics and charting patterns for receptor-aware analysis.
 - **Metrics-first**: analgesia AUC, tolerance slope, dependence/withdrawal AUROC, sedation/respiratory ceilings, QT/QTc safety, and reproducibility checkpoints are tracked end-to-end with signatures.
 - **Modular comms**: REST/gRPC contracts standardize module interaction so the TUI, CLI, and web stack can orchestrate runs interchangeably across CPU/Arc/OpenVINO backends.
 

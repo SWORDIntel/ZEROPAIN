@@ -1,8 +1,9 @@
-# SR-17018, SR-15968, and OPID Initiative: Focused MLOps & Modular Therapeutics Stack
+# SR-17018, SR-15968, SR-14968, and OPID Initiative: Focused MLOps & Modular Therapeutics Stack
 
 ## Purpose and Scope
 - **SR-17018 (tolerance-sparing):** Optimize compounds/protocols for high analgesia with flat tolerance slope and suppressed β-arrestin recruitment.
 - **SR-15968 (sedation-minimizing):** Maintain analgesic effect while keeping sedation/respiratory depression below cohort-specific ceilings.
+- **SR-14968 (respiratory-sparing):** Deliver sustained analgesia with κ antagonism and μ bias to limit respiratory depression and dysphoria while holding tolerance flat.
 - **OPID non-addictive analgesic:** Candidate class aiming for μ-opioid relief without reinforcing reward signaling (no euphoria/withdrawal) and without tolerance accumulation.
 - **Constraint envelope:** No tolerance or addiction uplift, predictable analgesia, tamper-evident audit trail, and reproducible runs across CPU/Arc GPU/OpenVINO.
 
@@ -17,6 +18,7 @@
 3) **Training/optimization stages**
    - **SR-17018:** reward analgesia retention vs. tolerance slope (`Δanalgesia / days`), penalize β-arrestin coupling and withdrawal risk probability.
    - **SR-15968:** dual-head model predicting analgesia and sedation; enforce ceilings via constrained optimization; respiratory depression risk >0.05 auto-fails.
+   - **SR-14968:** emphasize analgesic AUC and respiratory safety; reward κ antagonism impact and μ-bias G-protein signaling; block if tolerance slope exceeds 0.01/day or dysphoria markers rise.
    - **OPID candidate:** reinforcement loop over simulated cohorts with reward = analgesia – dependence risk – respiratory penalty; enforce monotonicity on tolerance slope.
    - Backends: Ray/Dask or local; resume from checkpoints; deterministic seeds per shard.
 4) **Evaluation & gating**
@@ -34,7 +36,7 @@
 - **Simulation Service**
   - `POST /simulate`: payload `{compound_id, cohort_profile, dose_plan, simulation_steps}` → returns analgesia curve, tolerance slope, AE estimates, audit signature.
 - **Optimization/Policy Service**
-  - `POST /optimize`: payload `{sr_id, objectives, constraints, backend, seeds}` → returns protocol candidates + checkpoints; accepts SR-17018/15968/OPID objectives.
+  - `POST /optimize`: payload `{sr_id, objectives, constraints, backend, seeds}` → returns protocol candidates + checkpoints; accepts SR-17018/15968/14968/OPID objectives.
 - **Metrics Service**
   - `POST /metrics`: append run metrics (`analgesia_auc`, `tolerance_slope`, `dependence_risk`, `sedation_rate`, `respiratory_prob`) to `metrics.jsonl` and push to Prometheus.
 - **Common behaviors**: signed responses (SHA-384), idempotent retries, schema-versioned payloads, enforced TLS/mTLS, and audit IDs propagated via headers.
