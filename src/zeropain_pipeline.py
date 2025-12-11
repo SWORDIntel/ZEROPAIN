@@ -9,6 +9,7 @@ import argparse
 import os
 from typing import List, Optional, Dict
 import json
+from pathlib import Path
 
 # Import core modules
 from utils.dependency_bootstrap import ensure_dependencies
@@ -27,6 +28,37 @@ from patient_simulation_100k import (
     run_100k_simulation,
 )
 from zeropain_tui import ZeroPainTUI
+from pkpd_calibration import (
+    calibrate_pkpd,
+    load_pkpd_config,
+)
+from scenarios import parse_cohort_spec, build_generation_config, scenario_defaults
+from tolerance_models import (
+    make_tolerance_model,
+    make_withdrawal_model,
+    ToleranceState,
+    WithdrawalState,
+)
+
+
+def _load_structured_config(path: Optional[str]) -> Dict:
+    if not path:
+        return {}
+    p = Path(path)
+    if not p.exists():
+        return {}
+    try:
+        with p.open("r") as f:
+            if path.endswith(".json"):
+                return json.load(f)
+            try:
+                import yaml  # type: ignore
+
+                return yaml.safe_load(f) or {}
+            except Exception:
+                return {}
+    except Exception:
+        return {}
 
 
 class ZeroPainPipeline:
@@ -101,6 +133,27 @@ class ZeroPainPipeline:
 
         return results
 
+    def run_pkpd_calibration(self, config_path: Optional[str] = None, observations_path: Optional[str] = None) -> Dict:
+        """Run PK/PD calibration (MAP) with optional observations."""
+        if not config_path:
+            return {"skipped": True, "reason": "no_config"}
+
+        if self.verbose:
+            print("\n" + "="*60)
+            print("PK/PD CALIBRATION")
+            print("="*60)
+            print(f"Config: {config_path}")
+
+        cfg = load_pkpd_config(config_path)
+        observations = {}
+        if observations_path and os.path.exists(observations_path):
+            with open(observations_path, "r") as f:
+                observations = json.load(f)
+
+        result = calibrate_pkpd(cfg, observations)
+        self.tracker.log_artifact("pkpd_calibration.json", result)
+        return result
+
     def run_optimization(self,
                         compounds: List[str],
                         n_patients: int = 1000,
@@ -150,7 +203,10 @@ class ZeroPainPipeline:
                       n_patients: int = 100000,
                       duration_days: int = 90,
                       generation_config: Optional[PatientGenerationConfig] = None,
-                      output_file: Optional[str] = None) -> Dict:
+                      output_file: Optional[str] = None,
+                      scenario_id: Optional[str] = None,
+                      cohort_spec: Optional[str] = None,
+                      tolerance_config: Optional[Dict] = None) -> Dict:
         """Run patient simulation"""
         if self.verbose:
             print("\n" + "="*60)
@@ -164,6 +220,13 @@ class ZeroPainPipeline:
 
         simulation = PopulationSimulation(self.db, use_multiprocessing=self.runner.backend == 'local')
 
+        if generation_config is None and cohort_spec:
+            cohort = parse_cohort_spec(cohort_spec)
+            generation_config = build_generation_config(cohort)
+            n_patients = cohort.n
+        if generation_config and generation_config.population_size:
+            n_patients = generation_config.population_size
+
         results = simulation.run_simulation(
             protocol,
             n_patients=n_patients,
@@ -173,6 +236,29 @@ class ZeroPainPipeline:
             checkpoint_stage='simulation',
             batch_size=self.batch_size
         )
+
+        # Tolerance projection (lightweight, not replacing core simulator)
+        if tolerance_config:
+            tol_model = make_tolerance_model(tolerance_config.get("tolerance", {}))
+            wd_model = make_withdrawal_model(tolerance_config.get("tolerance", {}))
+            tol_state = ToleranceState(level=0.0, ceiling=tolerance_config.get("tolerance", {}).get("max_factor", 3.0))
+            wd_state = WithdrawalState(severity=0.0, onset_delay_days=2.0)
+            tol_state = tol_model.update(
+                state=tol_state,
+                exposure=sum(protocol.doses) * duration_days,
+                dt_days=1.0,
+            )
+            wd_state = wd_model.update(
+                state=wd_state,
+                abstinence_metric=0.0,
+                dt_days=1.0,
+            )
+            results["tolerance_projection"] = {
+                "model": tolerance_config.get("tolerance", {}).get("model", "sigmoid"),
+                "level": getattr(tol_state, "level", 0.0),
+                "ceiling": getattr(tol_state, "ceiling", 0.0),
+                "withdrawal_severity": getattr(wd_state, "severity", 0.0),
+            }
 
         if self.verbose:
             self._print_simulation_results(results)
@@ -198,8 +284,47 @@ class ZeroPainPipeline:
             'computation_time': results.get('computation_time'),
             **{k: v for k, v in results.items() if k.startswith('nt_')},
         })
+        self.tracker.upsert_metadata({
+            "scenario": scenario_id,
+            "cohort_spec": cohort_spec,
+        })
 
         return results
+
+    def run_scenario(self,
+                     protocol: ProtocolConfig,
+                     scenario_id: str,
+                     cohort_spec: Optional[str] = None,
+                     duration_days: Optional[int] = None,
+                     output_file: Optional[str] = None,
+                     tolerance_config: Optional[Dict] = None) -> Dict:
+        defaults = scenario_defaults(scenario_id)
+        gen_cfg = None
+        if cohort_spec:
+            cohort = parse_cohort_spec(cohort_spec)
+            gen_cfg = build_generation_config(cohort)
+            n_patients = cohort.n
+        else:
+            n_patients = defaults.get("n_patients", 500)
+
+        horizon = duration_days or defaults.get("horizon_days", 30)
+
+        self.tracker.record_config({
+            "scenario": scenario_id,
+            "cohort_spec": cohort_spec,
+            "horizon_days": horizon,
+        })
+
+        return self.run_simulation(
+            protocol,
+            n_patients=n_patients,
+            duration_days=horizon,
+            generation_config=gen_cfg,
+            output_file=output_file,
+            scenario_id=scenario_id,
+            cohort_spec=cohort_spec,
+            tolerance_config=tolerance_config,
+        )
 
     def run_full_pipeline(self,
                          compounds: List[str],
@@ -397,6 +522,19 @@ Examples:
     parser.add_argument('--max-iterations', type=int, default=100,
                        help='Maximum optimization iterations (default: 100)')
 
+    parser.add_argument('--pkpd-config', type=str,
+                       help='PK/PD calibration config (YAML/JSON)')
+    parser.add_argument('--pkpd-observations', type=str,
+                       help='Observations JSON for PK/PD calibration')
+    parser.add_argument('--tolerance-config', type=str,
+                       help='Tolerance/withdrawal config (YAML/JSON)')
+    parser.add_argument('--scenario', type=str,
+                       help='Scenario template id (perioperative|chronic|breakthrough)')
+    parser.add_argument('--cohort', type=str,
+                       help='Cohort spec e.g., "n=200,age=60±10,renal=0.3,seed=42"')
+    parser.add_argument('--dosing-policy', type=str, default='fixed',
+                       help='Dosing policy (fixed|exposure|toxicity)')
+
     parser.add_argument('--intel', action='store_true',
                        help='Enable Intel NPU/GPU acceleration')
     parser.add_argument('--output-dir', type=str, default='results',
@@ -424,7 +562,7 @@ Examples:
         return
 
     # Require at least one mode
-    if not any([args.full, args.analyze, args.optimize, args.simulate]):
+    if not any([args.full, args.analyze, args.optimize, args.simulate, args.pkpd_config]):
         parser.print_help()
         return
 
@@ -438,6 +576,15 @@ Examples:
         resume=args.resume,
         batch_size=args.batch_size,
     )
+
+    tolerance_cfg = _load_structured_config(args.tolerance_config)
+
+    # Optional PK/PD calibration (can run standalone or before other modes)
+    if args.pkpd_config:
+        pipeline.run_pkpd_calibration(
+            config_path=args.pkpd_config,
+            observations_path=args.pkpd_observations,
+        )
 
     # Run requested operations
     if args.full:
@@ -494,11 +641,24 @@ Examples:
         output_file = os.path.join(args.output_dir, 'simulation_results.json')
         os.makedirs(args.output_dir, exist_ok=True)
 
-        pipeline.run_simulation(
-            protocol=protocol,
-            n_patients=args.n_patients_sim,
-            output_file=output_file
-        )
+        if args.scenario:
+            pipeline.run_scenario(
+                protocol=protocol,
+                scenario_id=args.scenario,
+                cohort_spec=args.cohort,
+                duration_days=None,
+                output_file=output_file,
+                tolerance_config=tolerance_cfg,
+            )
+        else:
+            pipeline.run_simulation(
+                protocol=protocol,
+                n_patients=args.n_patients_sim,
+                output_file=output_file,
+                scenario_id=args.scenario,
+                cohort_spec=args.cohort,
+                tolerance_config=tolerance_cfg,
+            )
 
 
 if __name__ == '__main__':
