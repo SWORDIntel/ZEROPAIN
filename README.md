@@ -2,7 +2,7 @@
 
 ZeroPain is a distributed pharmacology lab that optimizes multi-compound opioid protocols with rich patient simulations, auditable experiment tracking, and dual UIs (Rich terminal + 1:1 web experience). It targets Intel NPU/OpenVINO, Arc GPU, and CPU backends, runs cleanly in Docker by default, and keeps every run tamper-evident.
 
-PROJECT ON HIATUS WHILST I DEAL WITH OTHER SHIT,but be assured the realistic goal of "curing pain" is still one i hold
+**PROJECT ON HIATUS WHILST I DEAL WITH OTHER SHIT,but be assured the realistic goal of "curing pain" is still one i hold**
 
 
 ## Highlights
