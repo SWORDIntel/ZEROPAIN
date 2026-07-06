@@ -28,6 +28,10 @@ class CompoundProfile:
     receptor_type: str = "MOR"  # MOR, DOR, KOR
     pharmacological_activities: List[str] = field(default_factory=list)
     mechanism_notes: str = ""
+    ki_mor: float = float('inf')
+    ki_dor: float = float('inf')
+    ki_kor: float = float('inf')
+    metabolic_pathways: Dict[str, float] = field(default_factory=lambda: {"CYP2D6": 0.5, "CYP3A4": 0.5})
 
     def to_dict(self) -> Dict:
         """Convert to dictionary for serialization"""
@@ -47,6 +51,10 @@ class CompoundProfile:
             'receptor_type': self.receptor_type,
             'pharmacological_activities': self.pharmacological_activities,
             'mechanism_notes': self.mechanism_notes,
+            'ki_mor': self.ki_mor,
+            'ki_dor': self.ki_dor,
+            'ki_kor': self.ki_kor,
+            'metabolic_pathways': self.metabolic_pathways,
         }
 
     @classmethod
@@ -117,7 +125,9 @@ class CompoundDatabase:
                 t_half=3.0,
                 bioavailability=0.3,
                 intrinsic_activity=1.0,
-                tolerance_rate=0.8
+                tolerance_rate=0.8,
+                ki_mor=1.8,
+                metabolic_pathways={"CYP2D6": 0.2, "CYP3A4": 0.8}
             ),
             'Oxycodone': CompoundProfile(
                 name='Oxycodone',
@@ -129,7 +139,9 @@ class CompoundDatabase:
                 t_half=3.5,
                 bioavailability=0.87,
                 intrinsic_activity=0.9,
-                tolerance_rate=0.7
+                tolerance_rate=0.7,
+                ki_mor=18.0,
+                metabolic_pathways={"CYP2D6": 0.5, "CYP3A4": 0.5}
             ),
             'Fentanyl': CompoundProfile(
                 name='Fentanyl',
@@ -141,7 +153,9 @@ class CompoundDatabase:
                 t_half=3.7,
                 bioavailability=0.5,
                 intrinsic_activity=1.0,
-                tolerance_rate=0.9
+                tolerance_rate=0.9,
+                ki_mor=0.39,
+                metabolic_pathways={"CYP3A4": 1.0}
             ),
             'Buprenorphine': CompoundProfile(
                 name='Buprenorphine',
@@ -154,7 +168,11 @@ class CompoundDatabase:
                 bioavailability=0.15,
                 intrinsic_activity=0.3,
                 tolerance_rate=0.1,
-                prevents_withdrawal=True
+                prevents_withdrawal=True,
+                ki_mor=0.2,
+                ki_dor=1.0,
+                ki_kor=0.5,
+                metabolic_pathways={"CYP3A4": 0.9, "CYP2D6": 0.1}
             ),
             'Oliceridine': CompoundProfile(
                 name='Oliceridine',
@@ -166,7 +184,9 @@ class CompoundDatabase:
                 t_half=2.0,
                 bioavailability=0.3,
                 intrinsic_activity=0.8,
-                tolerance_rate=0.6
+                tolerance_rate=0.6,
+                ki_mor=8.0,
+                metabolic_pathways={"CYP3A4": 0.7, "CYP2D6": 0.3}
             ),
             'Tapentadol': CompoundProfile(
                 name='Tapentadol',
@@ -178,7 +198,9 @@ class CompoundDatabase:
                 t_half=4.0,
                 bioavailability=0.32,
                 intrinsic_activity=0.88,
-                tolerance_rate=0.4
+                tolerance_rate=0.4,
+                ki_mor=100.0,
+                metabolic_pathways={"CYP2D6": 0.5, "CYP3A4": 0.5}
             ),
             'Tramadol': CompoundProfile(
                 name='Tramadol',
@@ -190,7 +212,9 @@ class CompoundDatabase:
                 t_half=6.0,
                 bioavailability=0.75,
                 intrinsic_activity=0.1,
-                tolerance_rate=0.3
+                tolerance_rate=0.3,
+                ki_mor=2400.0,
+                metabolic_pathways={"CYP2D6": 0.9, "CYP3A4": 0.1}
             ),
 
             # Experimental biased agonists
@@ -204,7 +228,9 @@ class CompoundDatabase:
                 t_half=3.0,
                 bioavailability=0.2,
                 intrinsic_activity=0.6,
-                tolerance_rate=0.2
+                tolerance_rate=0.2,
+                ki_mor=2.5,
+                metabolic_pathways={"CYP2D6": 0.5, "CYP3A4": 0.5}
             ),
             'SR-17018': CompoundProfile(
                 name='SR-17018',
@@ -218,7 +244,9 @@ class CompoundDatabase:
                 intrinsic_activity=0.38,
                 tolerance_rate=0.0,
                 prevents_withdrawal=True,
-                reverses_tolerance=True
+                reverses_tolerance=True,
+                ki_mor=26.0,
+                metabolic_pathways={"CYP3A4": 0.8, "CYP2D6": 0.2}
             ),
             'SR-14968': CompoundProfile(
                 name='SR-14968',
@@ -230,7 +258,9 @@ class CompoundDatabase:
                 t_half=12.0,
                 bioavailability=0.8,
                 intrinsic_activity=0.65,
-                tolerance_rate=0.15
+                tolerance_rate=0.15,
+                ki_mor=10.0,
+                metabolic_pathways={"CYP3A4": 0.6, "CYP2D6": 0.4}
             ),
 
             # Natural compounds
@@ -245,7 +275,9 @@ class CompoundDatabase:
                 bioavailability=0.2,
                 intrinsic_activity=0.13,
                 tolerance_rate=0.4,
-                prevents_withdrawal=True
+                prevents_withdrawal=True,
+                ki_mor=160.0,
+                metabolic_pathways={"CYP3A4": 0.9, "CYP2D6": 0.1}
             ),
             'Nalbuphine': CompoundProfile(
                 name='Nalbuphine',
@@ -257,7 +289,9 @@ class CompoundDatabase:
                 t_half=5.0,
                 bioavailability=0.16,
                 intrinsic_activity=0.4,
-                tolerance_rate=0.2
+                tolerance_rate=0.2,
+                ki_mor=11.0,
+                metabolic_pathways={"CYP2D6": 0.5, "CYP3A4": 0.5}
             ),
         }
 
@@ -401,6 +435,9 @@ class PharmacokineticModel:
         """Calculate receptor occupancy and activation."""
         if ki == float('inf'):
             return 0.0
+
+        if ki < 1e-5:
+            ki = 1e-5
 
         occupancy = concentration / (concentration + ki)
         return occupancy * intrinsic_activity

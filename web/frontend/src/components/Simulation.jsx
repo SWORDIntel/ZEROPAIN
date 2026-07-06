@@ -47,7 +47,7 @@ export default function Simulation() {
       <div className="card-header">
         <div>
           <div className="eyebrow">Patient simulation</div>
-          <h3>Population + medication controls with accelerator hints</h3>
+          <h3>Population + medication controls for CPU simulation</h3>
         </div>
         <span className="muted">Backend: {form.backend}</span>
       </div>
@@ -140,32 +140,53 @@ export default function Simulation() {
             <div className="status-line">
               <span className={mutation.data.signature_valid ? 'badge' : 'error-text'}>{mutation.data.signature_status}</span>
               <span className="muted">Run ID: {mutation.data.run_id}</span>
+              {mutation.data.job_record_id && <span className="muted">Job: {mutation.data.job_record_id}</span>}
             </div>
           )}
         </div>
       </form>
       {mutation.data && (
-        <div className="grid three nested">
-          <div className="stat">
-            <div className="eyebrow">Analgesia</div>
-            <div className="stat-value">{mutation.data.metrics.analgesia_score}</div>
+        <div className="stack result-stack">
+          <div className="grid three nested">
+            <div className="stat">
+              <div className="eyebrow">Analgesia</div>
+              <div className="stat-value">{mutation.data.metrics.analgesia_score}</div>
+            </div>
+            <div className="stat">
+              <div className="eyebrow">Side-effect risk</div>
+              <div className="stat-value">{mutation.data.metrics.side_effect_risk}</div>
+            </div>
+            <div className="stat">
+              <div className="eyebrow">Receptor occupancy</div>
+              <div className="stat-value">{mutation.data.metrics.receptor_occupancy}</div>
+            </div>
+            <div className="stat">
+              <div className="eyebrow">Medication exposure</div>
+              <div className="stat-value">{mutation.data.metrics.medication_exposure}</div>
+            </div>
+            <div className="stat">
+              <div className="eyebrow">Throughput/batch</div>
+              <div className="stat-value">{mutation.data.metrics.throughput_per_batch}</div>
+            </div>
           </div>
-          <div className="stat">
-            <div className="eyebrow">Side-effect risk</div>
-            <div className="stat-value">{mutation.data.metrics.side_effect_risk}</div>
-          </div>
-          <div className="stat">
-            <div className="eyebrow">Receptor occupancy</div>
-            <div className="stat-value">{mutation.data.metrics.receptor_occupancy}</div>
-          </div>
-          <div className="stat">
-            <div className="eyebrow">Medication exposure</div>
-            <div className="stat-value">{mutation.data.metrics.medication_exposure}</div>
-          </div>
-          <div className="stat">
-            <div className="eyebrow">Throughput/batch</div>
-            <div className="stat-value">{mutation.data.metrics.throughput_per_batch}</div>
-          </div>
+          {mutation.data.provenance && (
+            <div className="provenance-panel">
+              <div className="status-line">
+                <span className={mutation.data.provenance.decision_grade === 'true' ? 'badge' : 'badge warning'}>
+                  {mutation.data.provenance.decision_grade === 'true' ? 'decision grade' : 'research only'}
+                </span>
+                <span className="muted">Model: {mutation.data.provenance.model}</span>
+                <span className="muted">Mode: {mutation.data.provenance.mode}</span>
+                <span className="muted">Training: {mutation.data.provenance.training_profile}</span>
+              </div>
+              <div className="provenance-grid">
+                <span>Engine: {mutation.data.provenance.engine}</span>
+                <span>Input hash: {mutation.data.provenance.input_hash.slice(0, 18)}</span>
+                <span>Model hash: {mutation.data.provenance.model_hash.slice(0, 18)}</span>
+                <span>{mutation.data.provenance.warning}</span>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

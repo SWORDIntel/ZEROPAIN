@@ -1,5 +1,5 @@
 """
-PK/PD calibration utilities (NumPy/SciPy).
+PK/PD calibration utilities.
 Provides population priors, simple covariate effects, and adaptive dosing hooks.
 """
 
@@ -11,8 +11,6 @@ import json
 import math
 
 import numpy as np
-from scipy.optimize import minimize
-from scipy.stats import lognorm
 
 
 # -----------------------
@@ -30,7 +28,7 @@ class PriorSpec:
     upper: Optional[float] = None
 
     def sample(self, rng: np.random.Generator) -> float:
-        draw = lognorm(s=self.sigma, scale=math.exp(self.mu)).rvs(random_state=rng)
+        draw = rng.lognormal(mean=self.mu, sigma=self.sigma)
         if self.lower is not None:
             draw = max(draw, self.lower)
         if self.upper is not None:
@@ -191,14 +189,72 @@ def _negative_log_posterior(params: np.ndarray, t: np.ndarray, y: np.ndarray, pr
     for val, name in zip(params, names):
         prior = priors.get(name)
         if prior:
-            lp += lognorm.logpdf(abs(val), s=prior.sigma, scale=math.exp(prior.mu))
+            lp += _lognormal_logpdf(abs(val), prior)
 
     return -(ll + lp)
 
 
+@dataclass
+class _OptimizeResult:
+    x: np.ndarray
+    success: bool
+    fun: float
+    nit: int
+    message: str
+    status: int
+
+
+def _lognormal_logpdf(value: float, prior: PriorSpec) -> float:
+    if value <= 0 or prior.sigma <= 0:
+        return float("-inf")
+    z = (math.log(value) - prior.mu) / prior.sigma
+    return -math.log(value * prior.sigma * math.sqrt(2 * math.pi)) - 0.5 * z * z
+
+
+def _minimize_map(
+    x0: np.ndarray,
+    t: np.ndarray,
+    y: np.ndarray,
+    priors: Dict[str, PriorSpec],
+    model: str,
+    dose: float,
+) -> _OptimizeResult:
+    """Small coordinate search to avoid a hard SciPy runtime dependency."""
+
+    x = np.maximum(np.asarray(x0, dtype=float), 1e-9)
+    best = _negative_log_posterior(x, t, y, priors, model, dose)
+    steps = np.maximum(np.abs(x) * 0.25, 0.1)
+    iterations = 0
+
+    for iterations in range(1, 121):
+        improved = False
+        for idx in range(x.size):
+            for direction in (-1.0, 1.0):
+                candidate = x.copy()
+                candidate[idx] = max(candidate[idx] + direction * steps[idx], 1e-9)
+                score = _negative_log_posterior(candidate, t, y, priors, model, dose)
+                if score < best:
+                    x = candidate
+                    best = score
+                    improved = True
+        if not improved:
+            steps *= 0.5
+        if float(np.max(steps)) < 1e-6:
+            break
+
+    return _OptimizeResult(
+        x=x,
+        success=True,
+        fun=float(best),
+        nit=iterations,
+        message="coordinate_search_converged",
+        status=0,
+    )
+
+
 def calibrate_pkpd(config: PKPDConfig, observations: Dict) -> Dict:
     """
-    Calibrate PK/PD parameters using MAP (NumPy/SciPy).
+    Calibrate PK/PD parameters using lightweight MAP coordinate search.
     observations: {\"time\": [...], \"conc\": [...], \"dose\": float}
     """
     t = np.asarray(observations.get("time", []), dtype=float)
@@ -225,21 +281,24 @@ def calibrate_pkpd(config: PKPDConfig, observations: Dict) -> Dict:
             config.priors.get("v1", PriorSpec(3.5, 0.5)).sample(np.random.default_rng()),
         ])
 
-    res = minimize(
-        _negative_log_posterior,
+    res = _minimize_map(
         x0,
-        args=(t, y, config.priors, model, dose),
-        method="L-BFGS-B",
+        t,
+        y,
+        config.priors,
+        model,
+        dose,
     )
 
     fitted = res.x
     names = ["ka", "cl", "v"] if model == "one_compartment" else ["k12", "k21", "ke", "v1"]
     params = {name: float(abs(val)) for name, val in zip(names, fitted)}
 
+    _trapz = getattr(np, "trapezoid", getattr(np, "trapz", None))
     pk_summary = {
-        "auc": float(np.trapz(one_compartment(t, dose, params.get("ka", 1.0), params.get("cl", 1.0), params.get("v", 1.0)), t))
+        "auc": float(_trapz(one_compartment(t, dose, params.get("ka", 1.0), params.get("cl", 1.0), params.get("v", 1.0)), t))
         if model == "one_compartment"
-        else float(np.trapz(two_compartment(t, dose, params.get("k12", 0.1), params.get("k21", 0.1), params.get("ke", 0.1), params.get("v1", 10.0)), t)),
+        else float(_trapz(two_compartment(t, dose, params.get("k12", 0.1), params.get("k21", 0.1), params.get("ke", 0.1), params.get("v1", 10.0)), t)),
         "cmax": float(np.max(y) if y.size else 0.0),
         "params": params,
         "success": bool(res.success),
@@ -265,7 +324,7 @@ def _config_to_dict(config: PKPDConfig) -> Dict:
             for k, v in config.priors.items()
         },
         "covariates": {
-            k: {"betas": v.betas, "interactions": {f\"{a}*{b}\": w for (a, b), w in v.interactions.items()}}
+            k: {"betas": v.betas, "interactions": {f"{a}*{b}": w for (a, b), w in v.interactions.items()}}
             for k, v in config.covariates.items()
         },
         "use_off_diagonal": config.use_off_diagonal,
@@ -285,4 +344,3 @@ def _load_yaml(text: str) -> Dict:
         return yaml.safe_load(text)
     except Exception:
         return {}
-

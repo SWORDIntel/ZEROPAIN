@@ -1,0 +1,12 @@
+diff --git a/third_party/KEYSTONE/src/keystone.c b/third_party/KEYSTONE/src/keystone.c
+--- a/third_party/KEYSTONE/src/keystone.c
++++ b/third_party/KEYSTONE/src/keystone.c
+@@ -1550,3 +1550,3 @@ static keystone_backend_t keystone_static_auto_backend(size_t n,
+-    if (query_shape == KEYSTONE_QUERY_SHAPE_DENSE_SORTED && num_items >= KEYSTONE_AUTO_FORTRAN_MIN_ITEMS) {
++    if (keystone_fortran_backend_available() && query_shape == KEYSTONE_QUERY_SHAPE_DENSE_SORTED && num_items >= KEYSTONE_AUTO_FORTRAN_MIN_ITEMS) {
+         return KEYSTONE_BACKEND_FORTRAN;
+     }
+@@ -1792,3 +1792,3 @@ size_t keystone_search_batch_auto(const int64_t* arr,
+-    if (!(query_shape == KEYSTONE_QUERY_SHAPE_DENSE_SORTED && num_items >= KEYSTONE_AUTO_FORTRAN_MIN_ITEMS) &&
++    if (!(keystone_fortran_backend_available() && query_shape == KEYSTONE_QUERY_SHAPE_DENSE_SORTED && num_items >= KEYSTONE_AUTO_FORTRAN_MIN_ITEMS) &&
+         keystone_auto_scalar_fast_path(num_items, config, thread_count)) {

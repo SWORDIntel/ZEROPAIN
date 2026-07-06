@@ -14,6 +14,12 @@ import time
 
 from opioid_analysis_tools import CompoundDatabase, CompoundProfile
 from opioid_optimization_framework import ProtocolConfig, PharmacokineticModel
+from tolerance_models import (
+    make_tolerance_model,
+    make_addiction_model,
+    ToleranceState,
+    AddictionState,
+)
 
 
 @dataclass
@@ -144,6 +150,7 @@ class PatientProfile:
     medications: List[str] = field(default_factory=list)
     baseline_tolerance: float = 0.0
     medication_effects: Dict[str, float] = field(default_factory=dict)
+    cyp_activity: Dict[str, float] = field(default_factory=dict)
 
     def to_dict(self) -> Dict:
         return {
@@ -158,6 +165,7 @@ class PatientProfile:
             'medications': self.medications,
             'baseline_tolerance': self.baseline_tolerance,
             'medication_effects': self.medication_effects,
+            'cyp_activity': self.cyp_activity,
         }
 
 
@@ -290,6 +298,32 @@ class PatientGenerator:
         if 'kidney_disease' in comorbidities:
             base_metabolism *= 0.7
 
+        # Calculate patient-specific CYP activity rates dynamically
+        cyp_activity = {}
+        for enzyme in ["CYP2D6", "CYP3A4"]:
+            activity = 1.0
+
+            # Age modulation
+            if age > 65:
+                activity *= 0.8
+            elif age < 25:
+                activity *= 1.2
+
+            # Sex modulation
+            if enzyme == "CYP3A4" and sex == "F":
+                activity *= 1.3
+
+            # Comorbidities modulation
+            if 'liver_disease' in comorbidities:
+                activity *= 0.6
+            if 'kidney_disease' in comorbidities:
+                activity *= 0.85
+
+            # Medication modulation
+            activity *= medication_effects.get('metabolism_multiplier', 1.0)
+
+            cyp_activity[enzyme] = float(activity)
+
         return PatientProfile(
             patient_id=patient_id,
             age=age,
@@ -302,6 +336,7 @@ class PatientGenerator:
             medications=medications,
             baseline_tolerance=medication_effects['baseline_tolerance'],
             medication_effects=medication_effects,
+            cyp_activity=cyp_activity,
         )
 
     @classmethod
@@ -326,7 +361,8 @@ class PatientSimulator:
 
     def simulate_patient(self, patient: PatientProfile,
                         protocol: ProtocolConfig,
-                        duration_days: int = 90) -> SimulationResult:
+                        duration_days: int = 90,
+                        tolerance_config: Optional[Dict] = None) -> SimulationResult:
         """
         Simulate patient response to protocol over time
 
@@ -334,6 +370,7 @@ class PatientSimulator:
             patient: Patient profile
             protocol: Treatment protocol
             duration_days: Simulation duration in days
+            tolerance_config: Optional configuration for tolerance and addiction models
 
         Returns:
             SimulationResult with outcomes
@@ -367,6 +404,14 @@ class PatientSimulator:
         tolerance_history = []
         med_effects = patient.medication_effects or {}
 
+        # Pluggable progression models
+        tc = (tolerance_config or {}).get("tolerance", {}) if tolerance_config else {}
+        tol_model = make_tolerance_model(tc)
+        add_model = make_addiction_model(tc)
+
+        tol_state = ToleranceState(level=tolerance_level, ceiling=tc.get("max_factor", 3.0))
+        add_state = AddictionState(level=0.0, threshold=tc.get("threshold", tc.get("addiction_threshold", 60.0)))
+
         # Adverse events tracking
         adverse_events = []
 
@@ -385,6 +430,7 @@ class PatientSimulator:
             total_side_effects = 0.0
             g_sum = 0.0
             beta_sum = 0.0
+            timepoint_dopamine = 0.0
 
             # Calculate contribution from each compound
             for compound, dose, freq in zip(compounds, protocol.doses, protocol.frequencies):
@@ -397,34 +443,75 @@ class PatientSimulator:
                                       else time_of_day + hours_per_day - dt
                                       for dt in dose_times])
 
-                # Calculate concentration
-                adjusted_t_half = compound.t_half / patient.metabolism_rate
+                # Calculate patient-specific CYP activity sum and adjusted half-life
+                pathways = getattr(compound, 'metabolic_pathways', {"CYP2D6": 0.5, "CYP3A4": 0.5})
+                pathway_sum = 0.0
+                for enzyme, ratio in pathways.items():
+                    act = patient.cyp_activity.get(enzyme, 1.0)
+                    pathway_sum += ratio * act
+
+                if pathway_sum < 1e-3:
+                    pathway_sum = 1e-3
+                adjusted_t_half = compound.t_half / pathway_sum
+                if adjusted_t_half < 0.1:
+                    adjusted_t_half = 0.1
 
                 concentration = self.pk_model.calculate_concentration(
                     dose, time_since_dose, adjusted_t_half,
                     compound.bioavailability, volume_dist
                 )
 
-                # Determine binding site
-                if compound.ki_orthosteric != float('inf'):
-                    ki = compound.ki_orthosteric
-                elif compound.ki_allosteric1 != float('inf'):
-                    ki = compound.ki_allosteric1
-                else:
-                    ki = 50.0  # Default
+                # Calculate separate receptor activation (MOR, DOR, KOR)
+                g_activation = 0.0
+                beta_activation = 0.0
 
-                # Calculate receptor occupancy with patient sensitivity
-                g_activation = self.pk_model.calculate_receptor_occupancy(
-                    concentration * patient.sensitivity,
-                    ki,
-                    compound.intrinsic_activity * compound.g_protein_bias
-                )
+                # MOR
+                ki_mor = getattr(compound, 'ki_mor', float('inf'))
+                if ki_mor == float('inf') and getattr(compound, 'receptor_type', 'MOR') == 'MOR':
+                    ki_mor = compound.ki_orthosteric if compound.ki_orthosteric != float('inf') else (compound.ki_allosteric1 if compound.ki_allosteric1 != float('inf') else 50.0)
+                if ki_mor != float('inf'):
+                    g_activation += self.pk_model.calculate_receptor_occupancy(
+                        concentration * patient.sensitivity,
+                        ki_mor,
+                        compound.intrinsic_activity * compound.g_protein_bias
+                    )
+                    beta_activation += self.pk_model.calculate_receptor_occupancy(
+                        concentration * patient.sensitivity,
+                        ki_mor,
+                        compound.intrinsic_activity * compound.beta_arrestin_bias
+                    )
 
-                beta_activation = self.pk_model.calculate_receptor_occupancy(
-                    concentration * patient.sensitivity,
-                    ki,
-                    compound.intrinsic_activity * compound.beta_arrestin_bias
-                )
+                # DOR
+                ki_dor = getattr(compound, 'ki_dor', float('inf'))
+                if ki_dor == float('inf') and getattr(compound, 'receptor_type', 'MOR') == 'DOR':
+                    ki_dor = compound.ki_orthosteric if compound.ki_orthosteric != float('inf') else (compound.ki_allosteric1 if compound.ki_allosteric1 != float('inf') else 50.0)
+                if ki_dor != float('inf'):
+                    g_activation += self.pk_model.calculate_receptor_occupancy(
+                        concentration * patient.sensitivity,
+                        ki_dor,
+                        compound.intrinsic_activity * compound.g_protein_bias
+                    )
+                    beta_activation += self.pk_model.calculate_receptor_occupancy(
+                        concentration * patient.sensitivity,
+                        ki_dor,
+                        compound.intrinsic_activity * compound.beta_arrestin_bias
+                    )
+
+                # KOR
+                ki_kor = getattr(compound, 'ki_kor', float('inf'))
+                if ki_kor == float('inf') and getattr(compound, 'receptor_type', 'MOR') == 'KOR':
+                    ki_kor = compound.ki_orthosteric if compound.ki_orthosteric != float('inf') else (compound.ki_allosteric1 if compound.ki_allosteric1 != float('inf') else 50.0)
+                if ki_kor != float('inf'):
+                    g_activation += self.pk_model.calculate_receptor_occupancy(
+                        concentration * patient.sensitivity,
+                        ki_kor,
+                        compound.intrinsic_activity * compound.g_protein_bias
+                    )
+                    beta_activation += self.pk_model.calculate_receptor_occupancy(
+                        concentration * patient.sensitivity,
+                        ki_kor,
+                        compound.intrinsic_activity * compound.beta_arrestin_bias
+                    )
 
                 neurotransmitters = self.pk_model.calculate_neurotransmitter_release(
                     g_activation, beta_activation
@@ -432,14 +519,19 @@ class PatientSimulator:
                 for name, value in neurotransmitters.items():
                     neurotransmitter_totals[name] += value
 
+                timepoint_dopamine += neurotransmitters.get('dopamine', 0.0)
+
                 # Update tolerance
                 if not compound.reverses_tolerance:
-                    tolerance_increment = compound.tolerance_rate * beta_activation * 0.0001
-                    tolerance_level += tolerance_increment
+                    dt_days = time_step / 24.0
+                    exposure = compound.tolerance_rate * beta_activation
+                    tol_state = tol_model.update(tol_state, exposure, dt_days)
+                    tolerance_level = tol_state.level
 
                 # Apply tolerance reversal effects
                 if compound.reverses_tolerance and tolerance_level > 0:
-                    tolerance_level *= 0.9995  # Gradual reversal
+                    tol_state.level *= 0.9995  # Gradual reversal
+                    tolerance_level = tol_state.level
 
                 # Calculate effective tolerance
                 if compound.reverses_tolerance:
@@ -460,6 +552,10 @@ class PatientSimulator:
                 total_side_effects += beta_activation
                 g_sum += g_activation
                 beta_sum += beta_activation
+
+            # Update addiction state using pluggable AddictionModel
+            dt_days = time_step / 24.0
+            add_state = add_model.update(add_state, timepoint_dopamine, dt_days)
 
             # Medication modulation
             total_analgesia += med_effects.get('analgesia_bonus', 0.0)
@@ -510,14 +606,14 @@ class PatientSimulator:
         # Tolerance development
         tolerance_developed = final_tolerance > 0.5
 
-        # Addiction risk factors
-        addiction_risk = avg_side_effects * 0.25
+        # Addiction risk factors modulated by addiction state level
+        addiction_risk = add_state.level
         if 'depression' in patient.comorbidities:
             addiction_risk *= 1.5
         if 'anxiety' in patient.comorbidities:
             addiction_risk *= 1.3
 
-        addiction_signs = np.random.random() < addiction_risk
+        addiction_signs = addiction_risk > 0.5 or (np.random.random() < addiction_risk)
 
         # Withdrawal assessment
         has_withdrawal_protection = any(
@@ -579,7 +675,8 @@ class PopulationSimulation:
                       generation_config: Optional[PatientGenerationConfig] = None,
                       runner=None,
                       checkpoint_stage: str = 'simulation',
-                      batch_size: int = 256) -> Dict:
+                      batch_size: int = 256,
+                      tolerance_config: Optional[Dict] = None) -> Dict:
         """
         Run large-scale population simulation
 
@@ -617,7 +714,8 @@ class PopulationSimulation:
             simulate_func = partial(
                 self.simulator.simulate_patient,
                 protocol=protocol,
-                duration_days=duration_days
+                duration_days=duration_days,
+                tolerance_config=tolerance_config
             )
             results = runner.map(
                 simulate_func,
@@ -636,14 +734,15 @@ class PopulationSimulation:
                 simulate_func = partial(
                     self._simulate_wrapper,
                     protocol=protocol,
-                    duration_days=duration_days
+                    duration_days=duration_days,
+                    tolerance_config=tolerance_config
                 )
                 results = pool.map(simulate_func, patients)
         else:
             # Serial simulation
             print(f"  Serial processing")
             results = [
-                self.simulator.simulate_patient(patient, protocol, duration_days)
+                self.simulator.simulate_patient(patient, protocol, duration_days, tolerance_config)
                 for patient in patients
             ]
 
@@ -679,9 +778,10 @@ class PopulationSimulation:
 
     def _simulate_wrapper(self, patient: PatientProfile,
                          protocol: ProtocolConfig,
-                         duration_days: int) -> SimulationResult:
+                         duration_days: int,
+                         tolerance_config: Optional[Dict] = None) -> SimulationResult:
         """Wrapper for multiprocessing"""
-        return self.simulator.simulate_patient(patient, protocol, duration_days)
+        return self.simulator.simulate_patient(patient, protocol, duration_days, tolerance_config)
 
     def _aggregate_results(self, results: List[SimulationResult]) -> Dict:
         """Aggregate simulation results"""

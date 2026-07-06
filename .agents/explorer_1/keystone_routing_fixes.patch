@@ -1,0 +1,20 @@
+--- "/fast/Main Workspace/ZEROPAIN/third_party/KEYSTONE/src/keystone.c"	2026-07-06 10:24:00.550093831 +0100
++++ "/fast/Main Workspace/ZEROPAIN/.agents/explorer_1/keystone_modified.c"	2026-07-06 10:50:58.235786599 +0100
+@@ -1789,7 +1789,7 @@
+     }
+ 
+     const int query_shape = keystone_detect_auto_query_shape(arr, n, items, num_items);
+-    if (!(query_shape == KEYSTONE_QUERY_SHAPE_DENSE_SORTED && num_items >= KEYSTONE_AUTO_FORTRAN_MIN_ITEMS) &&
++    if (!(keystone_fortran_backend_available() && query_shape == KEYSTONE_QUERY_SHAPE_DENSE_SORTED && num_items >= KEYSTONE_AUTO_FORTRAN_MIN_ITEMS) &&
+         keystone_auto_scalar_fast_path(num_items, config, thread_count)) {
+         const uint64_t start_ns = keystone_now_ns();
+         const size_t found =
+@@ -1886,6 +1886,8 @@
+     }
+     if (cached_p95_ns_per_key <= 0.0) {
+         cached_p95_ns_per_key = estimated_ns_per_key;
++    } else if (cached_p95_ns_per_key < estimated_ns_per_key) {
++        cached_p95_ns_per_key = estimated_ns_per_key;
+     }
+ 
+     keystone_record_backend_decision(

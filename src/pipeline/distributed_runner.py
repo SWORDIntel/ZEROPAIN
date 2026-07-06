@@ -14,6 +14,20 @@ from pathlib import Path
 from typing import Any, Callable, Iterable, List, Optional
 
 
+class _NumpyEncoder(json.JSONEncoder):
+    """JSON encoder that coerces numpy scalar types to native Python types."""
+
+    def default(self, obj: Any) -> Any:  # type: ignore[override]
+        try:
+            import numpy as np  # type: ignore
+
+            if isinstance(obj, np.generic):
+                return obj.item()
+        except ImportError:
+            pass
+        return super().default(obj)
+
+
 class DistributedRunner:
     """Execute functions over items with optional distributed backends."""
 
@@ -25,6 +39,7 @@ class DistributedRunner:
         resume: bool = True,
         max_retries: int = 1,
         num_workers: Optional[int] = None,
+        batch_size: int = 64,
     ):
         self.backend = backend.lower()
         self.checkpoint_root = Path(checkpoint_dir)
@@ -32,6 +47,7 @@ class DistributedRunner:
         self.resume = resume
         self.max_retries = max_retries
         self.num_workers = num_workers
+        self.batch_size = batch_size
 
         self._ray = None
         self._dask_client = None
@@ -70,11 +86,12 @@ class DistributedRunner:
             to_store = dump_fn(computed) if dump_fn else computed
 
             with ckpt_path.open("w", encoding="utf-8") as f:
-                json.dump(to_store, f, indent=2)
+                json.dump(to_store, f, indent=2, cls=_NumpyEncoder)
 
             results.extend(computed)
 
         return results
+
 
     def _run_batch(self, func: Callable[[Any], Any], batch: List[Any]) -> List[Any]:
         if self.backend == "ray":

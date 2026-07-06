@@ -46,6 +46,7 @@ outputs/
 *.json
 !requirements.json
 !package.json
+!package-lock.json
 
 # Custom compounds (keep template but ignore user data)
 custom_compounds.json
@@ -87,3 +88,7 @@ web/frontend/build/
 # Job storage
 active_jobs/
 completed_jobs/
+
+# Native backend working trees are cloned by scripts/build_native_backends.sh.
+third_party/QIHSE/
+third_party/KEYSTONE/

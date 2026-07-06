@@ -1,11 +1,11 @@
-# SR-17018, SR-15968, SR-14968, and OPID Initiative: Focused MLOps & Modular Therapeutics Stack
+# SR-17018, SR-14968, and OPID Initiative: Focused MLOps & Modular Therapeutics Stack
 
 ## Purpose and Scope
 - **SR-17018 (tolerance-sparing):** Optimize compounds/protocols for high analgesia with flat tolerance slope and suppressed β-arrestin recruitment.
-- **SR-15968 (sedation-minimizing):** Maintain analgesic effect while keeping sedation/respiratory depression below cohort-specific ceilings.
 - **SR-14968 (respiratory-sparing):** Deliver sustained analgesia with κ antagonism and μ bias to limit respiratory depression and dysphoria while holding tolerance flat.
+- **Lead combination hypothesis:** Evaluate SR-17018 + SR-14968 + selected opioid in virtual cohorts to search for receptor-overlap patterns that retain analgesia while suppressing tolerance, withdrawal, sedation, and respiratory risk. Doses are TBD simulation inputs, not clinical guidance.
 - **OPID non-addictive analgesic:** Candidate class aiming for μ-opioid relief without reinforcing reward signaling (no euphoria/withdrawal) and without tolerance accumulation.
-- **Constraint envelope:** No tolerance or addiction uplift, predictable analgesia, tamper-evident audit trail, and reproducible runs across CPU/Arc GPU/OpenVINO.
+- **Constraint envelope:** No tolerance or addiction uplift, predictable analgesia, tamper-evident audit trail, and reproducible CPU-first runs on the Intel Xeon AVX2 host.
 
 ## End-to-End MLOps Pipeline (aligned to Zeropain stack)
 1) **Data ingress & validation**
@@ -17,8 +17,8 @@
    - Attach run metadata (backend, seeds, hardware hints) and SHA-384 signatures from `experiment_tracking` to every feature snapshot.
 3) **Training/optimization stages**
    - **SR-17018:** reward analgesia retention vs. tolerance slope (`Δanalgesia / days`), penalize β-arrestin coupling and withdrawal risk probability.
-   - **SR-15968:** dual-head model predicting analgesia and sedation; enforce ceilings via constrained optimization; respiratory depression risk >0.05 auto-fails.
    - **SR-14968:** emphasize analgesic AUC and respiratory safety; reward κ antagonism impact and μ-bias G-protein signaling; block if tolerance slope exceeds 0.01/day or dysphoria markers rise.
+   - **SR-17018 + SR-14968 + opioid combination:** sweep virtual dose/frequency grids against analgesia retention, tolerance slope, withdrawal risk, sedation, and respiratory ceilings; require provenance hashes and signed artifacts for every candidate.
    - **OPID candidate:** reinforcement loop over simulated cohorts with reward = analgesia – dependence risk – respiratory penalty; enforce monotonicity on tolerance slope.
    - Backends: Ray/Dask or local; resume from checkpoints; deterministic seeds per shard.
 4) **Evaluation & gating**
@@ -36,7 +36,7 @@
 - **Simulation Service**
   - `POST /simulate`: payload `{compound_id, cohort_profile, dose_plan, simulation_steps}` → returns analgesia curve, tolerance slope, AE estimates, audit signature.
 - **Optimization/Policy Service**
-  - `POST /optimize`: payload `{sr_id, objectives, constraints, backend, seeds}` → returns protocol candidates + checkpoints; accepts SR-17018/15968/14968/OPID objectives.
+  - `POST /optimize`: payload `{sr_id, objectives, constraints, backend, seeds}` → returns protocol candidates + checkpoints; accepts SR-17018/SR-14968/combination/OPID objectives.
 - **Metrics Service**
   - `POST /metrics`: append run metrics (`analgesia_auc`, `tolerance_slope`, `dependence_risk`, `sedation_rate`, `respiratory_prob`) to `metrics.jsonl` and push to Prometheus.
 - **Common behaviors**: signed responses (SHA-384), idempotent retries, schema-versioned payloads, enforced TLS/mTLS, and audit IDs propagated via headers.
@@ -52,7 +52,7 @@
 ## Configuration & Adjustability Hooks
 - **Objective weights** per SR-ID configurable via CLI/TUI (`--objectives tolerance=0 sedation=0 dependence=0` for no-tolerance/no-addiction runs) or YAML bundle.
 - **Checkpoints**: resume paths under `runs/<run-id>/checkpoints`; shard-level retries with deterministic seeds.
-- **Hardware hints**: `--backend {local,ray,dask}`; `INTEL_DEVICE` env for CPU/Arc GPU/OpenVINO selection.
+- **Hardware hints**: `--backend {local,ray,dask}` for CPU execution; OpenVINO/NPU/Arc are optional future accelerators, not the canonical path.
 - **Policy tuning**: swap reward functions without code changes via config map (JSON/YAML) consumed by the Optimization service.
 
 ## Governance & Validation

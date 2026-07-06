@@ -38,7 +38,7 @@ except ImportError:
 
 from opioid_analysis_tools import CompoundDatabase, CompoundProfile
 from opioid_optimization_framework import ProtocolOptimizer, ProtocolConfig, run_local_optimization
-from patient_simulation_100k import (
+from patient_simulation import (
     PopulationSimulation,
     PatientGenerator,
     PatientGenerationConfig,
@@ -81,6 +81,22 @@ class ZeroPainTUI:
         self.tracker: Optional[ExperimentTracker] = None
         self.animations_enabled = True
         self.refresh_hz = 8
+        self.selected_compound_index = 0
+        self.active_protocol = ProtocolConfig(
+            compounds=['SR-17018', 'SR-14968', 'Oxycodone'],
+            doses=[16.17, 25.31, 5.07],
+            frequencies=[2, 1, 4]
+        )
+        self.last_sim_results = None
+        self.last_opt_results = None
+        self.status_message = "Welcome to ZeroPain TUI. Enter a command in the footer prompt."
+        self.n_patients = 10000
+        self.duration = 90
+        self.tolerance_model_type = "linear"
+        self.tolerance_slope = 0.01
+        self.addiction_model_type = "linear"
+        self.addiction_slope = 0.05
+        self.addiction_threshold = 2.0
 
     def _progress(self, description: str) -> Progress:
         if not RICH_AVAILABLE:
@@ -229,38 +245,210 @@ class ZeroPainTUI:
         return n_patients, config
 
     def run(self):
-        """Main TUI loop"""
+        """Main TUI loop - Unified Layout Dashboard"""
         if not RICH_AVAILABLE:
             self.run_simple_menu()
             return
 
-        self.show_banner()
+        self.selected_compound_index = 0
+        self.last_sim_results = None
+        self.last_opt_results = None
+        self.status_message = "Welcome to ZeroPain Unified TUI. Enter 'help' for commands."
 
-        while True:
-            self.console.print()
-            choice = self.show_main_menu()
+        with Live(self.make_layout(), refresh_per_second=2, screen=True) as live:
+            while True:
+                live.update(self.make_layout())
+                
+                try:
+                    cmd = Prompt.ask("\n[bold cyan]Command[/bold cyan]")
+                except (KeyboardInterrupt, EOFError):
+                    break
+                
+                cmd = cmd.strip().lower()
+                if not cmd:
+                    continue
+                
+                if cmd == 'q' or cmd == 'quit':
+                    break
+                elif cmd == 'help':
+                    self.status_message = "Commands: b <num> (browse compound details), build (custom builder), opt (optimize), sim (simulate), settings, q (quit)"
+                elif cmd.startswith('b '):
+                    try:
+                        idx = int(cmd.split(' ')[1]) - 1
+                        compounds = sorted(self.db.list_compounds())
+                        if 0 <= idx < len(compounds):
+                            self.selected_compound_index = idx
+                            self.status_message = f"Selected compound: {compounds[idx]}"
+                        else:
+                            self.status_message = "Invalid compound index"
+                    except ValueError:
+                        self.status_message = "Usage: b <num>"
+                elif cmd == 'build':
+                    live.stop()
+                    self.custom_compound_menu()
+                    live.start()
+                elif cmd == 'opt':
+                    live.stop()
+                    self.optimization_menu()
+                    live.start()
+                elif cmd == 'sim':
+                    live.stop()
+                    self.simulation_menu()
+                    live.start()
+                elif cmd == 'settings':
+                    live.stop()
+                    self.settings_menu()
+                    live.start()
+                else:
+                    self.status_message = f"Unknown command: '{cmd}'. Type 'help' for commands."
 
-            if choice == '1':
-                self.browse_compounds_menu()
-            elif choice == '2':
-                self.compound_comparison_menu()
-            elif choice == '3':
-                self.custom_compound_menu()
-            elif choice == '4':
-                self.optimization_menu()
-            elif choice == '5':
-                self.simulation_menu()
-            elif choice == '6':
-                self.settings_menu()
-            elif choice == '7':
-                self.run_history_menu()
-            elif choice == '8':
-                self.export_menu()
-            elif choice == 'q':
-                self.console.print("\n[bold green]Thank you for using ZeroPain![/bold green]")
-                break
+    def make_layout(self) -> Layout:
+        layout = Layout()
+        layout.split_column(
+            Layout(name="header", size=3),
+            Layout(name="body"),
+            Layout(name="footer", size=3)
+        )
+        layout["body"].split_row(
+            Layout(name="left", ratio=1),
+            Layout(name="right", ratio=2)
+        )
+        layout["right"].split_column(
+            Layout(name="right_top", ratio=1),
+            Layout(name="right_bottom", ratio=1)
+        )
+        
+        layout["header"].update(self._make_header())
+        layout["left"].update(self._make_left_panel())
+        layout["right_top"].update(self._make_right_top_panel())
+        layout["right_bottom"].update(self._make_right_bottom_panel())
+        layout["footer"].update(self._make_footer())
+        
+        return layout
+
+    def _make_header(self) -> Panel:
+        import os
+        from zeropain.utils.hardware import cpu_hardware_profile
+        try:
+            profile = cpu_hardware_profile()
+            cpu_model = profile.get("model_name", "Unknown CPU")
+            logical_cpus = profile.get("logical_cpus", os.cpu_count() or 0)
+        except Exception:
+            cpu_model = "Generic CPU"
+            logical_cpus = os.cpu_count() or 0
+            
+        accel_detail = "CPU (No OpenVINO)"
+        try:
+            from openvino.runtime import Core
+            core = Core()
+            devices = core.available_devices
+            if "NPU" in devices:
+                accel_detail = "Intel OpenVINO NPU (Active)"
+            elif len(devices) > 0:
+                accel_detail = f"Intel OpenVINO {devices[0]} (Active)"
             else:
-                self.console.print("[red]Invalid choice. Please try again.[/red]")
+                accel_detail = "Intel OpenVINO (CPU Active)"
+        except Exception:
+            pass
+            
+        status_text = f"[bold cyan]ZeroPain Therapeutics TUI v3.0[/bold cyan] | CPU: [cyan]{cpu_model}[/cyan] ({logical_cpus} cores) | Accel: [green]{accel_detail}[/green]"
+        return Panel(status_text, border_style="cyan", title="System & Accelerator Status")
+
+    def _make_left_panel(self) -> Panel:
+        compounds = sorted(self.db.list_compounds())
+        if not compounds:
+            return Panel("[yellow]No compounds in database[/yellow]", title="Compound Database")
+            
+        list_text = []
+        for i, name in enumerate(compounds):
+            marker = "> " if i == self.selected_compound_index else "  "
+            style = "bold cyan" if i == self.selected_compound_index else "white"
+            list_text.append(f"[{style}]{marker}[{i+1}] {name}[/{style}]")
+            
+        comp_list = "\n".join(list_text)
+        
+        sel_name = compounds[self.selected_compound_index]
+        c = self.db.get_compound(sel_name)
+        
+        ki_mor_val = f"{c.ki_mor:.1f} nM" if getattr(c, "ki_mor", float('inf')) != float('inf') else "∞"
+        ki_dor_val = f"{c.ki_dor:.1f} nM" if getattr(c, "ki_dor", float('inf')) != float('inf') else "∞"
+        ki_kor_val = f"{c.ki_kor:.1f} nM" if getattr(c, "ki_kor", float('inf')) != float('inf') else "∞"
+        
+        cyp_info = []
+        if hasattr(c, "metabolic_pathways") and c.metabolic_pathways:
+            for enzyme, ratio in c.metabolic_pathways.items():
+                cyp_info.append(f"{enzyme}: {ratio:.1%}")
+        cyp_str = ", ".join(cyp_info) if cyp_info else "None"
+        
+        details = f"""
+[bold cyan]═══ Selected Compound Details ═══[/bold cyan]
+[bold]Name:[/] {c.name}
+[bold]Ki (MOR):[/] {ki_mor_val}
+[bold]Ki (DOR):[/] {ki_dor_val}
+[bold]Ki (KOR):[/] {ki_kor_val}
+[bold]CYP Enzymes:[/] {cyp_str}
+[bold]G-protein bias:[/] {c.g_protein_bias:.2f}x
+[bold]β-arrestin bias:[/] {c.beta_arrestin_bias:.2f}x
+[bold]Half-life:[/] {c.t_half:.1f} hours
+[bold]Bioavailability:[/] {c.bioavailability:.0%}
+[bold]Intrinsic Activity:[/] {c.intrinsic_activity:.2f}
+[bold]Safety Score:[/] {c.calculate_safety_score():.1f}/100
+"""
+        full_content = comp_list + "\n\n" + details
+        return Panel(full_content, title="Compound Database Browser", border_style="cyan")
+
+    def _make_right_top_panel(self) -> Panel:
+        proto_info = "[bold cyan]Active Treatment Protocol:[/bold cyan]\n"
+        for comp, dose, freq in zip(self.active_protocol.compounds, self.active_protocol.doses, self.active_protocol.frequencies):
+            proto_info += f"  • [cyan]{comp}[/cyan]: {dose:.2f} mg (Frequency: {freq}x/day)\n"
+            
+        opt_info = "\n[bold cyan]Optimization Status & Options:[/bold cyan]\n"
+        if self.last_opt_results:
+            opt_info += f"  Last run fitness: [green]{self.last_opt_results.get('fitness', 0.0):.2f}[/green]\n"
+            opt_info += f"  Optimal doses found: {self.last_opt_results.get('optimal_doses')}\n"
+        else:
+            opt_info += "  No optimization run recorded. Run [bold green]opt[/bold green] to optimize dosing protocol."
+            
+        return Panel(proto_info + opt_info, title="Active Treatment Protocol & Optimization", border_style="cyan")
+
+    def _make_right_bottom_panel(self) -> Panel:
+        sim_info = f"[bold cyan]Simulation Configuration:[/bold cyan]\n"
+        sim_info += f"  Population size: {self.n_patients} patients | Duration: {self.duration} days\n"
+        sim_info += f"  Tolerance model: {self.tolerance_model_type} (slope: {self.tolerance_slope})\n"
+        sim_info += f"  Addiction model: {self.addiction_model_type} (slope: {self.addiction_slope})\n\n"
+        
+        sim_info += "[bold cyan]Last Simulation Outcomes:[/bold cyan]\n"
+        if self.last_sim_results:
+            success = self.last_sim_results.get('success_rate', 0.0)
+            tolerance = self.last_sim_results.get('tolerance_rate', 0.0)
+            addiction = self.last_sim_results.get('addiction_rate', 0.0)
+            withdrawal = self.last_sim_results.get('withdrawal_rate', 0.0)
+            adverse = self.last_sim_results.get('adverse_event_rate', 0.0)
+            pain = self.last_sim_results.get('avg_pain_score', 0.0)
+            cost = self.last_sim_results.get('avg_cost', 0.0)
+            qaly = self.last_sim_results.get('avg_quality_of_life', 0.0)
+            
+            sim_info += f"  • Treatment Success Rate:     [{'green' if success >= 0.7 else 'yellow' if success >= 0.5 else 'red'}]{success:.2%}[/]\n"
+            sim_info += f"  • Tolerance Development:       [{'green' if tolerance <= 0.05 else 'red'}]{tolerance:.2%}[/]\n"
+            sim_info += f"  • Addiction Signs:             [{'green' if addiction <= 0.03 else 'red'}]{addiction:.2%}[/]\n"
+            sim_info += f"  • Withdrawal Occurrence:       [{'green' if withdrawal == 0 else 'red'}]{withdrawal:.2%}[/]\n"
+            sim_info += f"  • Adverse Events Rate:         {adverse:.2%}\n"
+            sim_info += f"  • Average Pain Score:          {pain:.2f} / 10\n"
+            sim_info += f"  • Average Total Cost:          ${cost:.2f}\n"
+            sim_info += f"  • QALYs Gained:                {qaly:.4f}\n"
+            
+            bar_width = 30
+            filled = int(success * bar_width)
+            bar = "█" * filled + "░" * (bar_width - filled)
+            sim_info += f"\n  [bold]Efficacy Chart:[/] |{bar}| ({success:.1%})"
+        else:
+            sim_info += "  No patient simulation run recorded. Run [bold green]sim[/bold green] to launch."
+            
+        return Panel(sim_info, title="Population Metrics & Simulation Outcomes", border_style="cyan")
+
+    def _make_footer(self) -> Panel:
+        prompt_line = f"[bold cyan]Command Bar >> [/bold cyan]{self.status_message}"
+        return Panel(prompt_line, border_style="cyan", title="Footer Console Interface")
 
     def show_banner(self):
         """Display welcome banner"""
@@ -582,6 +770,24 @@ class ZeroPainTUI:
         ki_allo2 = self._prompt_float_or_inf(
             "Ki allosteric2 (nM)", default(base_profile.ki_allosteric2 if base_profile else None, float('inf'))
         )
+        ki_mor = self._prompt_float_or_inf(
+            "Ki MOR (nM)", default(base_profile.ki_mor if base_profile else None, float('inf'))
+        )
+        ki_dor = self._prompt_float_or_inf(
+            "Ki DOR (nM)", default(base_profile.ki_dor if base_profile else None, float('inf'))
+        )
+        ki_kor = self._prompt_float_or_inf(
+            "Ki KOR (nM)", default(base_profile.ki_kor if base_profile else None, float('inf'))
+        )
+
+        self.console.print("\n[bold]Metabolic Pathways (CYP ratios, should sum to 1.0):[/bold]")
+        cyp2d6_ratio = FloatPrompt.ask(
+            "CYP2D6 ratio", default=default(base_profile.metabolic_pathways.get("CYP2D6") if base_profile and hasattr(base_profile, "metabolic_pathways") else None, 0.5)
+        )
+        cyp3a4_ratio = FloatPrompt.ask(
+            "CYP3A4 ratio", default=default(base_profile.metabolic_pathways.get("CYP3A4") if base_profile and hasattr(base_profile, "metabolic_pathways") else None, 0.5)
+        )
+        metabolic_pathways = {"CYP2D6": cyp2d6_ratio, "CYP3A4": cyp3a4_ratio}
 
         self.console.print("\n[bold]Signaling Bias:[/bold]")
         g_bias = FloatPrompt.ask(
@@ -650,6 +856,10 @@ class ZeroPainTUI:
             receptor_type=receptor_type,
             pharmacological_activities=pharmacological_activities,
             mechanism_notes=mechanism_notes,
+            ki_mor=ki_mor,
+            ki_dor=ki_dor,
+            ki_kor=ki_kor,
+            metabolic_pathways=metabolic_pathways,
         )
 
         safety = compound.calculate_safety_score()
@@ -747,6 +957,15 @@ Template: {template_hint or 'manual'}
 
         # Display results
         self._display_optimization_results(result)
+        self.last_opt_results = {
+            "fitness": result.safety_score,
+            "optimal_doses": ", ".join([f"{c}: {d:.2f}mg" for c, d in zip(result.optimal_protocol.compounds, result.optimal_protocol.doses)]),
+            "success_rate": result.success_rate,
+            "tolerance_rate": result.tolerance_rate,
+            "addiction_rate": result.addiction_rate,
+            "withdrawal_rate": result.withdrawal_rate
+        }
+        self.active_protocol = result.optimal_protocol
 
         tracker.log_metrics(
             "optimization",
@@ -888,6 +1107,16 @@ Template: {template_hint or 'manual'}
             self.db, use_multiprocessing=runner.backend == "local"
         )
 
+        tolerance_config = {
+            "tolerance": {
+                "model": self.tolerance_model_type,
+                "slope": self.tolerance_slope,
+                "addiction_model": self.addiction_model_type,
+                "addiction_slope": self.addiction_slope,
+                "addiction_threshold": self.addiction_threshold
+            }
+        }
+
         with self._progress("Simulating...") as progress:
             task = progress.add_task("Simulating...", total=None)
 
@@ -899,10 +1128,15 @@ Template: {template_hint or 'manual'}
                 runner=runner,
                 checkpoint_stage="simulation",
                 batch_size=self.batch_size,
+                tolerance_config=tolerance_config
             )
 
         # Display results
         self._display_simulation_results(results, protocol)
+        self.last_sim_results = results
+        self.active_protocol = protocol
+        self.n_patients = n_patients
+        self.duration = duration
 
         tracker.log_metrics(
             "simulation",

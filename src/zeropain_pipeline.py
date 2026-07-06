@@ -22,7 +22,7 @@ from utils.experiment_tracking import ExperimentTracker
 from opioid_optimization_framework import (
     ProtocolOptimizer, ProtocolConfig, run_local_optimization, OptimizationResult
 )
-from patient_simulation_100k import (
+from patient_simulation import (
     PopulationSimulation,
     PatientGenerationConfig,
     run_100k_simulation,
@@ -234,7 +234,8 @@ class ZeroPainPipeline:
             generation_config=generation_config,
             runner=self.runner,
             checkpoint_stage='simulation',
-            batch_size=self.batch_size
+            batch_size=self.batch_size,
+            tolerance_config=tolerance_config
         )
 
         # Tolerance projection (lightweight, not replacing core simulator)
@@ -551,9 +552,22 @@ Examples:
                        help='Disable checkpoint resume')
     parser.add_argument('--batch-size', type=int, default=256,
                        help='Batch size for distributed simulation shards (default: 256)')
+    parser.add_argument('--dsmil-adapter', action='store_true',
+                       help='Route execution through the DSMIL adapter')
     parser.set_defaults(resume=True)
 
     args = parser.parse_args()
+
+    # Route to DSMIL adapter if requested
+    if args.dsmil_adapter:
+        import dsmil_adapter
+        if args.tui:
+            dsmil_adapter.run_tui()
+            return
+        else:
+            import sys
+            cli_args = [arg for arg in sys.argv[1:] if arg != '--dsmil-adapter']
+            sys.exit(dsmil_adapter.run_cli(cli_args))
 
     # Launch TUI if requested
     if args.tui:

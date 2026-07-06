@@ -6,7 +6,7 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.append(str(ROOT / "src"))
 
-from patient_simulation_100k import (
+from patient_simulation import (
     PatientGenerator,
     PatientGenerationConfig,
     AgeDistribution,

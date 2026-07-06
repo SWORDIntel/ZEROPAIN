@@ -111,3 +111,35 @@ def make_withdrawal_model(config: Dict) -> WithdrawalModel:
         severity_scale=wd.get("severity_scale", 1.0),
     )
 
+
+@dataclass
+class AddictionState:
+    level: float = 0.0
+    threshold: float = 60.0
+
+
+class AddictionModel:
+    def update(self, state: AddictionState, dopamine_release: float, dt_days: float) -> AddictionState:
+        raise NotImplementedError
+
+
+class LinearAddiction(AddictionModel):
+    def __init__(self, slope: float = 0.005, threshold: float = 60.0):
+        self.slope = slope
+        self.threshold = threshold
+
+    def update(self, state: AddictionState, dopamine_release: float, dt_days: float) -> AddictionState:
+        surge = max(0.0, dopamine_release - self.threshold)
+        state.level = min(1.0, state.level + self.slope * surge * dt_days)
+        return state
+
+
+def make_addiction_model(config: Dict) -> AddictionModel:
+    name = config.get("model", "linear")
+    slope = config.get("addiction_slope", config.get("slope", 0.005))
+    threshold = config.get("addiction_threshold", config.get("threshold", 60.0))
+    return LinearAddiction(
+        slope=slope,
+        threshold=threshold
+    )
+

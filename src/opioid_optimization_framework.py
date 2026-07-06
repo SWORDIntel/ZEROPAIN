@@ -12,14 +12,15 @@ from functools import partial
 import time
 import os
 
-try:
-    from scipy.optimize import differential_evolution, minimize
-    SCIPY_AVAILABLE = True
-except ImportError:
-    SCIPY_AVAILABLE = False
-    print("Warning: scipy not available. Using basic optimization.")
-
 from opioid_analysis_tools import CompoundDatabase, CompoundProfile, PharmacokineticModel
+
+
+def _load_differential_evolution():
+    try:
+        from scipy.optimize import differential_evolution
+    except ImportError:
+        return None
+    return differential_evolution
 
 @dataclass
 class ProtocolConfig:
@@ -198,7 +199,8 @@ class ProtocolOptimizer:
             return score
 
         # Run optimization
-        if SCIPY_AVAILABLE:
+        differential_evolution = _load_differential_evolution()
+        if differential_evolution:
             print("\nRunning optimization with differential evolution...")
 
             if self.use_multiprocessing:

@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from typing import Dict, List, Optional
 import numpy as np
 
-from patient_simulation_100k import PatientGenerationConfig, AgeDistribution, WeightDistribution
+from patient_simulation import PatientGenerationConfig, AgeDistribution, WeightDistribution
 
 
 @dataclass

@@ -1,0 +1,69 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "zeropain"
+version = "4.0.0"
+description = "Research framework for pharmacology simulation, docking, and auditable therapeutic protocol experiments."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "numpy>=1.24.0",
+  "pandas>=2.0.0",
+  "pydantic>=2.0.0",
+  "sqlmodel>=0.0.14",
+]
+
+[project.optional-dependencies]
+api = [
+  "fastapi>=0.100.0",
+  "uvicorn>=0.23.0",
+  "python-jose[cryptography]>=3.3.0",
+  "passlib[bcrypt]>=1.7.4",
+  "psycopg2-binary>=2.9.0",
+]
+molecular = [
+  "prody>=2.4.0",
+  "biopython>=1.81",
+  "py3Dmol>=2.0.3",
+  "mordred>=1.2.0",
+  "chembl-webresource-client>=0.10.8",
+]
+intel = [
+  "openvino>=2023.0.0",
+]
+qihse = [
+  "qihse @ git+https://github.com/SWORDIntel/QIHSE.git#subdirectory=python",
+]
+dev = [
+  "pytest>=7.4.0",
+  "pytest-cov>=4.1.0",
+  "black>=23.0.0",
+  "ruff>=0.7.0",
+]
+alldeps = [
+  "zeropain[api,molecular,intel,qihse,dev]"
+]
+
+[project.scripts]
+zeropain = "zeropain.cli.main:main"
+
+[tool.setuptools.packages.find]
+include = ["zeropain*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = [".", "src"]
+addopts = "-ra"
+
+[tool.black]
+line-length = 100
+target-version = ["py311"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]

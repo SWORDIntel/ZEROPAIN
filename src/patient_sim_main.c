@@ -90,7 +90,12 @@ PatientCharacteristics* generate_population(int n) {
     const float risk_probs[] = {0.4, 0.35, 0.2, 0.05};  // 4 risk categories
     const float genetic_probs[] = {0.7, 0.1, 0.15, 0.05};  // 4 metabolizer types
     
-    #pragma omp parallel for
+    int max_threads = omp_get_max_threads();
+    int chunk_size = n / (max_threads * 4);
+    if (chunk_size < 1) chunk_size = 1;
+    if (chunk_size > 256) chunk_size = 256;
+    
+    #pragma omp parallel for schedule(dynamic, chunk_size)
     for (int i = 0; i < n; i++) {
         PatientCharacteristics* p = &patients[i];
         
@@ -190,8 +195,12 @@ float calculate_concentration(float dose, float t_half, float bioavail,
     float concentration;
     if (bioavail < 1.0) {
         // Oral administration
-        concentration = dose * bioavail * ka / (ka - ke) * 
-                       (expf(-ke * time_since_dose) - expf(-ka * time_since_dose));
+        if (fabsf(ka - ke) < 1e-4f) {
+            concentration = dose * bioavail * ka * time_since_dose * expf(-ka * time_since_dose);
+        } else {
+            concentration = dose * bioavail * ka / (ka - ke) * 
+                           (expf(-ke * time_since_dose) - expf(-ka * time_since_dose));
+        }
     } else {
         // IV administration
         concentration = dose * expf(-ke * time_since_dose);
@@ -263,6 +272,7 @@ ReceptorState calculate_receptor_dynamics(float sr17018_conc, float sr14968_conc
 TreatmentOutcome simulate_patient_treatment(const PatientCharacteristics* p, 
                                            const Protocol* protocol) {
     TreatmentOutcome outcome = {0};
+    outcome.discontinuation_day = -1;
     outcome.patient_id = p->patient_id;
     
     // Calculate dosing adjustments
@@ -315,18 +325,18 @@ TreatmentOutcome simulate_patient_treatment(const PatientCharacteristics* p,
             
             // Calculate concentrations
             float sr17018_conc = calculate_concentration(sr17018_dose, SR17018.t_half, 
-                                                        SR17018.bioavailability, cl_factor, 
-                                                        time_since_sr17018);
+                                                         SR17018.bioavailability, cl_factor, 
+                                                         time_since_sr17018);
             float sr14968_conc = calculate_concentration(sr14968_dose, SR14968.t_half,
-                                                        SR14968.bioavailability, cl_factor,
-                                                        time_since_sr14968);
+                                                         SR14968.bioavailability, cl_factor,
+                                                         time_since_sr14968);
             float dpp26_conc = calculate_concentration(dpp26_dose, DPP26.t_half,
-                                                      DPP26.bioavailability, cl_factor,
-                                                      time_since_dpp26);
+                                                       DPP26.bioavailability, cl_factor,
+                                                       time_since_dpp26);
             
             // Update receptor dynamics
             ReceptorState receptor = calculate_receptor_dynamics(sr17018_conc, sr14968_conc,
-                                                                dpp26_conc, tolerance);
+                                                                 dpp26_conc, tolerance);
             tolerance = receptor.tolerance_level;
             max_beta_arrestin = fmaxf(max_beta_arrestin, receptor.beta_arrestin_signal);
             
@@ -396,6 +406,13 @@ TreatmentOutcome simulate_patient_treatment(const PatientCharacteristics* p,
         }
     }
     
+    // Fill remaining daily pain scores with baseline pain score upon early discontinuation
+    if (outcome.discontinuation_day != -1) {
+        for (int d = outcome.discontinuation_day + 1; d < SIMULATION_DAYS; d++) {
+            outcome.daily_pain_scores[d] = p->baseline_pain_score;
+        }
+    }
+    
     // Calculate final outcomes
     outcome.avg_pain_reduction = cumulative_analgesia / (SIMULATION_DAYS * timesteps_per_day);
     outcome.tolerance_developed = tolerance > TOLERANCE_THRESHOLD;
@@ -406,11 +423,11 @@ TreatmentOutcome simulate_patient_treatment(const PatientCharacteristics* p,
     outcome.total_cost = total_cost;
     
     // QALY calculation
-    float qaly_days = outcome.discontinuation_day > 0 ? outcome.discontinuation_day : SIMULATION_DAYS;
+    float qaly_days = (outcome.discontinuation_day == -1) ? SIMULATION_DAYS : outcome.discontinuation_day;
     outcome.qaly_gained = (qaly_days / DAYS_PER_YEAR) * QALY_UTILITY_GAIN_FACTOR * outcome.avg_pain_reduction;
     
     // Success determination
-    if (outcome.discontinuation_day == 0) {
+    if (outcome.discontinuation_day == -1) {
         outcome.treatment_success = true;
         outcome.discontinuation_day = SIMULATION_DAYS;
     }
@@ -428,7 +445,12 @@ void simulate_population_parallel(const PatientCharacteristics* patients,
                                  int n_patients) {
     processed_patients = 0;
     
-    #pragma omp parallel for schedule(dynamic, BATCH_SIZE)
+    int max_threads = omp_get_max_threads();
+    int chunk_size = n_patients / (max_threads * 4);
+    if (chunk_size < 1) chunk_size = 1;
+    if (chunk_size > 256) chunk_size = 256;
+    
+    #pragma omp parallel for schedule(dynamic, chunk_size)
     for (int i = 0; i < n_patients; i++) {
         outcomes[i] = simulate_patient_treatment(&patients[i], protocol);
         
@@ -452,12 +474,20 @@ void simulate_population_parallel(const PatientCharacteristics* patients,
 // ============================================================================
 
 int main(int argc, char** argv) {
+    int n_patients = 100000;
+    if (argc > 1) {
+        int parsed = atoi(argv[1]);
+        if (parsed > 0) {
+            n_patients = parsed;
+        }
+    }
+
     // Print header
     printf("\n");
-    printf("â•”â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•—\n");
-    printf("â•‘          ZEROPAIN THERAPEUTICS - 100K PATIENT SIMULATION      â•‘\n");
+    printf("â•”â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â•—\n");
+    printf("â•‘          ZEROPAIN THERAPEUTICS - PATIENT SIMULATION           â•‘\n");
     printf("â•‘                  SR-17018 + SR-14968 + DPP-26                 â•‘\n");
-    printf("â•šâ•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•\n");
+    printf("â•šâ• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• \n");
     printf("\n");
     
     // System info
@@ -465,7 +495,7 @@ int main(int argc, char** argv) {
     printf("System Configuration:\n");
     printf("  Max threads available: %d\n", max_threads);
     printf("  Threads to use: %d\n", max_threads > MAX_THREADS ? MAX_THREADS : max_threads);
-    printf("  Patient population: %d\n", N_PATIENTS);
+    printf("  Patient population: %d\n", n_patients);
     printf("  Simulation duration: %d days\n", SIMULATION_DAYS);
     printf("\n");
     
@@ -489,12 +519,12 @@ int main(int argc, char** argv) {
     // Generate patient population
     printf("Phase 1: Generating patient population...\n");
     double start_time = omp_get_wtime();
-    PatientCharacteristics* patients = generate_population(N_PATIENTS);
+    PatientCharacteristics* patients = generate_population(n_patients);
     double gen_time = omp_get_wtime() - start_time;
     printf("  Population generated in %.2f seconds\n\n", gen_time);
     
     // Allocate outcomes
-    TreatmentOutcome* outcomes = (TreatmentOutcome*)calloc(N_PATIENTS, sizeof(TreatmentOutcome));
+    TreatmentOutcome* outcomes = (TreatmentOutcome*)calloc(n_patients, sizeof(TreatmentOutcome));
     if (!outcomes) {
         fprintf(stderr, "Failed to allocate memory for outcomes\n");
         free_population(patients);
@@ -504,14 +534,14 @@ int main(int argc, char** argv) {
     // Run simulation
     printf("Phase 2: Running Monte Carlo simulation...\n");
     start_time = omp_get_wtime();
-    simulate_population_parallel(patients, &protocol, outcomes, N_PATIENTS);
+    simulate_population_parallel(patients, &protocol, outcomes, n_patients);
     double sim_time = omp_get_wtime() - start_time;
     printf("  Simulation completed in %.2f seconds\n", sim_time);
-    printf("  Throughput: %.0f patients/second\n\n", N_PATIENTS / sim_time);
+    printf("  Throughput: %.0f patients/second\n\n", n_patients / sim_time);
     
     // Calculate statistics
     printf("Phase 3: Analyzing results...\n");
-    PopulationStatistics stats = calculate_statistics(outcomes, N_PATIENTS);
+    PopulationStatistics stats = calculate_statistics(outcomes, n_patients);
     
     // Print results
     print_statistics_report(&stats);
@@ -522,13 +552,13 @@ int main(int argc, char** argv) {
     printf("                 COMPUTATIONAL PERFORMANCE\n");
     printf("=========================================================\n");
     printf("  Total runtime:        %.2f seconds\n", gen_time + sim_time);
-    printf("  Patients/second:      %.0f\n", N_PATIENTS / (gen_time + sim_time));
+    printf("  Patients/second:      %.0f\n", n_patients / (gen_time + sim_time));
     printf("  Core efficiency:      %.1f%%\n", 
-           100.0 * N_PATIENTS / ((gen_time + sim_time) * max_threads * 1000));
+           100.0 * n_patients / ((gen_time + sim_time) * max_threads * 1000));
     
     // Save results
     printf("\nSaving results...\n");
-    save_results_csv(outcomes, N_PATIENTS, "dpp26_simulation_results.csv");
+    save_results_csv(outcomes, n_patients, "dpp26_simulation_results.csv");
     save_statistics_json(&stats, "population_statistics.json");
     
     // Cleanup

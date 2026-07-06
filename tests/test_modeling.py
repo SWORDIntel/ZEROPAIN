@@ -1,4 +1,5 @@
 import numpy as np
+import warnings
 
 from pkpd_calibration import PKPDConfig, PriorSpec, calibrate_pkpd
 from tolerance_models import make_tolerance_model, ToleranceState
@@ -23,6 +24,24 @@ def test_pkpd_calibration_map_basic():
     assert params["v"] > 0
 
 
+def test_pkpd_calibration_does_not_require_scipy_runtime():
+    cfg = PKPDConfig(
+        model="one_compartment",
+        priors={
+            "ka": PriorSpec(mu=0.0, sigma=0.3),
+            "cl": PriorSpec(mu=2.0, sigma=0.3),
+            "v": PriorSpec(mu=3.5, sigma=0.3),
+        },
+    )
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        result = calibrate_pkpd(cfg, {"dose": 100.0})
+
+    messages = [str(item.message) for item in caught]
+    assert not any("SciPy" in message or "NumPy version" in message for message in messages)
+    assert result["diagnostics"]["message"] == "coordinate_search_converged"
+
+
 def test_tolerance_models_monotonic():
     tol_model = make_tolerance_model({"model": "sigmoid", "max_factor": 2.0, "half_life_days": 7})
     state = ToleranceState(level=0.0, ceiling=2.0)
@@ -35,4 +54,3 @@ def test_scenario_cohort_generator():
     gen_cfg = build_generation_config(cohort)
     assert gen_cfg.population_size == 50
     assert 0.0 <= gen_cfg.comorbidity_prevalence["kidney_disease"] <= 1.0
-

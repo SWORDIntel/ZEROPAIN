@@ -6,6 +6,7 @@ Falls back to no-op if embedding model or vector store is unavailable.
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 from typing import Dict, Any, List
 
 logger = logging.getLogger(__name__)
@@ -108,4 +109,3 @@ def ingest_docking_vectors(job_id: str, poses: List[Any], telemetry: Dict[str, A
         elif isinstance(p, dict):
             pose_dicts.append(p)
     return ingestor.ingest(job_id, pose_dicts, telemetry, artifacts)
-
