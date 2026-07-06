@@ -267,4 +267,4 @@ def process_request(payload: Dict[str, Any]) -> Dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 if __name__ == '__main__':
-    sys.exit(run_cli())
+    sys.exit(run_cli(None))
