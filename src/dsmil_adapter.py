@@ -5,10 +5,49 @@ Wraps and exposes the CLI/TUI entrypoints and handles a structured JSON contract
 matching PatientGenerationConfig, ProtocolConfig, and CompoundProfile.
 """
 
-import sys
 import json
+import os
+import sys
 import traceback
-from typing import List, Dict, Optional, Any
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+
+ROOT = Path(__file__).resolve().parents[1]
+_CALIBRATED_PARAMS_PATH = ROOT / "calibrated_params.json"
+
+# ---------------------------------------------------------------------------
+# Calibrated params helpers
+# ---------------------------------------------------------------------------
+
+def _load_calibrated_tolerance_config(
+    compound_class: str = "full_agonist",
+    path: Optional[Path] = None,
+) -> Optional[Dict[str, Any]]:
+    """
+    Load tolerance_config from the fitted calibration file if it exists.
+    Returns None if the file is absent or malformed.
+    """
+    target = path or _CALIBRATED_PARAMS_PATH
+    if not target.exists():
+        return None
+    try:
+        with target.open("r", encoding="utf-8") as f:
+            params = json.load(f)
+        tol_key = "tolerance" if compound_class == "full_agonist" else "tolerance_partial_agonist"
+        tol = params.get(tol_key, params.get("tolerance", {}))
+        add = params.get("addiction", {})
+        return {
+            "tolerance": {
+                "model": tol.get("model", "sigmoid"),
+                "max_factor": tol.get("max_factor", 3.0),
+                "half_life_days": tol.get("half_life_days", 14.0),
+                "addiction_slope": add.get("addiction_slope", 0.005),
+                "addiction_threshold": add.get("addiction_threshold", 60.0),
+            }
+        }
+    except Exception:
+        return None
+
 from opioid_analysis_tools import CompoundDatabase, CompoundProfile
 from opioid_optimization_framework import ProtocolConfig
 from patient_simulation import PatientGenerationConfig, PopulationSimulation
@@ -211,16 +250,29 @@ def process_request(payload: Dict[str, Any]) -> Dict[str, Any]:
         batch_size = payload.get('batch_size', 256)
         run_id = payload.get('run_id')
 
-        # Tolerance/addiction config — accept both flat and nested forms
-        tc = payload.get('tolerance_config', {})
-        if isinstance(tc, dict) and 'tolerance' in tc:
-            # Already nested: {"tolerance": {...}}
-            tolerance_config = tc
-        elif isinstance(tc, dict) and 'model' in tc:
-            # Flat with model key: wrap it
-            tolerance_config = {'tolerance': tc}
+        # Tolerance/addiction config — priority chain:
+        #   1. Explicit payload tolerance_config
+        #   2. Calibrated params from calibrated_params.json (if use_calibrated not False)
+        #   3. Built-in defaults
+        tc = payload.get('tolerance_config')
+        use_calibrated = payload.get('use_calibrated', True)
+
+        if tc:
+            # Explicit override — normalise nested vs flat form
+            if isinstance(tc, dict) and 'tolerance' in tc:
+                tolerance_config = tc
+            elif isinstance(tc, dict) and 'model' in tc:
+                tolerance_config = {'tolerance': tc}
+            else:
+                tolerance_config = tc
+        elif use_calibrated:
+            tolerance_config = _load_calibrated_tolerance_config() or {}
+            if tolerance_config:
+                _calibrated_source = _CALIBRATED_PARAMS_PATH
+            else:
+                _calibrated_source = None
         else:
-            tolerance_config = tc
+            tolerance_config = {}
 
         from pipeline.distributed_runner import DistributedRunner
         runner = DistributedRunner(backend=payload.get('backend', 'local'), run_id=run_id)
