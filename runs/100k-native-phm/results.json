@@ -1,0 +1,32 @@
+{
+  "simulation": {
+    "success_rate": 0.0,
+    "tolerance_rate": 1.0,
+    "addiction_rate": 0.00332,
+    "withdrawal_rate": 0.01956,
+    "adverse_event_rate": 1.0,
+    "avg_pain_score": 0.0,
+    "avg_analgesia": 1.0,
+    "avg_side_effects": 0.1947144067366092,
+    "avg_quality_of_life": 0.922114237305356,
+    "avg_g_activation": 3.1010042410637,
+    "avg_beta_activation": 0.05920210224553641,
+    "avg_baseline_tolerance": 0.0059646000000000005,
+    "med_ssri/snri_rate": 0.17968,
+    "med_nsaid_rate": 0.2497,
+    "med_stimulant_rate": 0.06019,
+    "med_cannabis_rate": 0.10078,
+    "med_gabapentinoid_rate": 0.15014,
+    "med_benzodiazepine_rate": 0.07898,
+    "nt_endorphins": 260.0114356207221,
+    "nt_dopamine": 132.6698124114102,
+    "nt_serotonin": 60.38526982343176,
+    "nt_norepinephrine": 7.104252269464368,
+    "nt_substance_p": 16.66476072987965,
+    "pain_score_std": 0.0,
+    "analgesia_std": 0.0,
+    "qol_std": 0.018528143552522552,
+    "computation_time": 297.7241952419281,
+    "n_patients": 100000
+  }
+}

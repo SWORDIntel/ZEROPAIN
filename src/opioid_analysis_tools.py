@@ -143,6 +143,20 @@ class CompoundDatabase:
                 ki_mor=18.0,
                 metabolic_pathways={"CYP2D6": 0.5, "CYP3A4": 0.5}
             ),
+            'Phenomorphan': CompoundProfile(
+                name='Phenomorphan',
+                ki_orthosteric=0.8,
+                ki_allosteric1=float('inf'),
+                ki_allosteric2=float('inf'),
+                g_protein_bias=1.2,
+                beta_arrestin_bias=0.8,
+                t_half=22.0,  # Long half-life like methadone
+                bioavailability=0.85,
+                intrinsic_activity=1.0,  # Full efficacy for tolerant patients
+                tolerance_rate=0.4,
+                ki_mor=0.8,
+                metabolic_pathways={"CYP3A4": 0.7, "CYP2D6": 0.3}
+            ),
             'Fentanyl': CompoundProfile(
                 name='Fentanyl',
                 ki_orthosteric=0.39,
