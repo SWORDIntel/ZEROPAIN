@@ -36,14 +36,14 @@ def _load_calibrated_tolerance_config(
         tol_key = "tolerance" if compound_class == "full_agonist" else "tolerance_partial_agonist"
         tol = params.get(tol_key, params.get("tolerance", {}))
         add = params.get("addiction", {})
+        tol_compat = dict(tol)
+        if "addiction_slope" not in tol_compat and "addiction_slope" in add:
+            tol_compat["addiction_slope"] = add["addiction_slope"]
+        if "addiction_threshold" not in tol_compat and "addiction_threshold" in add:
+            tol_compat["addiction_threshold"] = add["addiction_threshold"]
         return {
-            "tolerance": {
-                "model": tol.get("model", "sigmoid"),
-                "max_factor": tol.get("max_factor", 3.0),
-                "half_life_days": tol.get("half_life_days", 14.0),
-                "addiction_slope": add.get("addiction_slope", 0.005),
-                "addiction_threshold": add.get("addiction_threshold", 60.0),
-            }
+            "tolerance": tol_compat,
+            "addiction": add
         }
     except Exception:
         return None
@@ -86,6 +86,11 @@ def run_cli(args: List[str]) -> int:
     parser.add_argument('--backend', choices=['local', 'ray', 'dask'], default='local')
     parser.add_argument('--tolerance-model', choices=['linear', 'sigmoid', 'lagged'], default='sigmoid')
     parser.add_argument('--addiction-slope', type=float, default=0.005)
+    parser.add_argument('--liver-disease-rate', type=float, default=None, help='Override liver disease prevalence (0.0 - 1.0)')
+    parser.add_argument('--kidney-disease-rate', type=float, default=None, help='Override kidney disease prevalence (0.0 - 1.0)')
+    parser.add_argument('--elderly-skew', action='store_true', help='Shift age distribution to elderly (>75)')
+    parser.add_argument('--high-tolerance-skew', action='store_true', help='Artificially increase baseline tolerance globally')
+    parser.add_argument('--polypharmacy-rate', type=float, default=None, help='Multiplier for pre-existing medication prevalence')
     parser.add_argument('--output', default=None, help='Write JSON results here')
 
     parsed = parser.parse_args(args)
@@ -108,12 +113,14 @@ def run_cli(args: List[str]) -> int:
         doses=parsed.doses,
         frequencies=parsed.frequencies,
     )
-    tolerance_config = {
-        'tolerance': {
-            'model': parsed.tolerance_model,
-            'addiction_slope': parsed.addiction_slope,
+    tolerance_config = _load_calibrated_tolerance_config()
+    if not tolerance_config:
+        tolerance_config = {
+            'tolerance': {
+                'model': parsed.tolerance_model,
+                'addiction_slope': parsed.addiction_slope,
+            }
         }
-    }
 
     if parsed.simulate or parsed.optimize:
         from pipeline.distributed_runner import DistributedRunner
@@ -126,9 +133,8 @@ def run_cli(args: List[str]) -> int:
         if parsed.optimize:
             from opioid_optimization_framework import run_local_optimization
             opt = run_local_optimization(
-                protocol=protocol, compound_db=db,
-                n_patients=min(parsed.n_patients_sim, 500),
-                duration_days=parsed.duration_days, seed=parsed.seed,
+                compounds=parsed.compounds,
+                n_patients=min(parsed.n_patients_sim, 500)
             )
             output['optimization'] = {
                 'optimal_doses': dict(zip(opt.optimal_protocol.compounds, opt.optimal_protocol.doses)),
@@ -138,7 +144,25 @@ def run_cli(args: List[str]) -> int:
 
         if parsed.simulate:
             sim = PopulationSimulation(db)
-            gen_config = PatientGenerationConfig(population_size=parsed.n_patients_sim)
+            gen_kwargs = {'population_size': parsed.n_patients_sim}
+            if parsed.elderly_skew:
+                from patient_simulation import AgeDistribution
+                gen_kwargs['age_distribution'] = AgeDistribution(mean=78.0, std=5.0)
+            
+            gen_config = PatientGenerationConfig(**gen_kwargs)
+            
+            # Apply demographic overrides
+            if parsed.liver_disease_rate is not None:
+                gen_config.comorbidity_prevalence['liver_disease'] = parsed.liver_disease_rate
+            if parsed.kidney_disease_rate is not None:
+                gen_config.comorbidity_prevalence['kidney_disease'] = parsed.kidney_disease_rate
+            if parsed.polypharmacy_rate is not None:
+                for k, v in gen_config.pre_existing_medications.items():
+                    v.prevalence = min(1.0, v.prevalence * parsed.polypharmacy_rate)
+            if parsed.high_tolerance_skew:
+                for k, v in gen_config.pre_existing_medications.items():
+                    v.baseline_tolerance = getattr(v, 'baseline_tolerance', 0.0) + 0.3
+            
             sim_results = sim.run_simulation(
                 n_patients=parsed.n_patients_sim,
                 protocol=protocol,
@@ -307,6 +331,7 @@ def process_request(payload: Dict[str, Any]) -> Dict[str, Any]:
             tolerance_config=tolerance_config,
         )
         safe = {k: _to_scalar(v) for k, v in sim_results.items() if isinstance(_to_scalar(v), (int, float, str, bool, type(None)))}
+        runner.close()
         # Return both wrapped (new) and flat (legacy) keys for backward compatibility
         return {'ok': True, 'result': {'operation': 'simulate', **safe}, **safe}
 
