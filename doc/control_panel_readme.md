@@ -137,7 +137,7 @@ Located in the Simulation Control panel:
 ### Key Safety Metrics
 
 #### Bias Ratio (G-protein / Î²-arrestin)
-- **>10**: Excellent (SR-17018 level)
+- **>10**: Excellent (SR-16435 level)
 - **5-10**: Good (safe for take-home)
 - **2-5**: Moderate (use with caution)
 - **<2**: Poor (traditional opioid problems)
@@ -265,7 +265,7 @@ sudo pacman -S glfw glew mesa
 {
   "compounds": [
     {
-      "name": "SR-17018",
+      "name": "SR-16435",
       "ki_orthosteric": 0,
       "ki_allosteric1": 26,
       "g_protein_bias": 8.2,
@@ -280,7 +280,7 @@ sudo pacman -S glfw glew mesa
 ```json
 {
   "protocol_name": "Zero Tolerance Achievement",
-  "compounds": ["SR-17018", "SR-14968", "DPP-26"],
+  "compounds": ["SR-16435", "Buprenorphine", "DPP-26"],
   "doses": [16.17, 25.31, 5.07],
   "frequencies": ["BID", "QD", "Q6H"]
 }

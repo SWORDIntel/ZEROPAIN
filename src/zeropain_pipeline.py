@@ -487,10 +487,10 @@ Examples:
   python zeropain_pipeline.py --tui
 
   # Run full pipeline
-  python zeropain_pipeline.py --full --compounds SR-17018 SR-14968 Oxycodone
+  python zeropain_pipeline.py --full --compounds SR-16435 Buprenorphine
 
   # Run optimization only
-  python zeropain_pipeline.py --optimize --compounds SR-17018 Oxycodone
+  python zeropain_pipeline.py --optimize --compounds SR-16435 Buprenorphine
 
   # Run simulation with custom protocol
   python zeropain_pipeline.py --simulate --protocol protocol.json

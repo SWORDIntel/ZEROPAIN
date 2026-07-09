@@ -160,6 +160,8 @@ def validate(
     # Unwrap result envelope if present
     if "result" in results and isinstance(results["result"], dict):
         obs = results["result"]
+    elif "simulation" in results and isinstance(results["simulation"], dict):
+        obs = results["simulation"]
     else:
         obs = results
 

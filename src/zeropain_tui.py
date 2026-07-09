@@ -83,9 +83,9 @@ class ZeroPainTUI:
         self.refresh_hz = 8
         self.selected_compound_index = 0
         self.active_protocol = ProtocolConfig(
-            compounds=['SR-17018', 'SR-14968', 'Oxycodone'],
-            doses=[16.17, 25.31, 5.07],
-            frequencies=[2, 1, 4]
+            compounds=['SR-16435', 'Buprenorphine'],
+            doses=[2.49, 0.5],
+            frequencies=[2, 2]
         )
         self.last_sim_results = None
         self.last_opt_results = None
@@ -1055,7 +1055,7 @@ Template: {template_hint or 'manual'}
 
         # Protocol selection
         self.console.print("[bold]Protocol Source:[/bold]")
-        self.console.print("  [1] Use default protocol (SR-17018 + SR-14968 + Oxycodone)")
+        self.console.print("  [1] Use default protocol (SR-16435 + Buprenorphine)")
         self.console.print("  [2] Load from file")
         self.console.print("  [3] Create custom protocol")
 
@@ -1063,9 +1063,9 @@ Template: {template_hint or 'manual'}
 
         if choice == '1':
             protocol = ProtocolConfig(
-                compounds=['SR-17018', 'SR-14968', 'Oxycodone'],
-                doses=[16.17, 25.31, 5.07],
-                frequencies=[2, 1, 4]
+                compounds=['SR-16435', 'Buprenorphine'],
+                doses=[2.49, 0.5],
+                frequencies=[2, 2]
             )
         elif choice == '2':
             filename = Prompt.ask("Protocol filename")

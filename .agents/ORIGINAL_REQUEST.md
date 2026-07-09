@@ -100,3 +100,32 @@ Add medically accurate tolerance and addiction progression models with adjustabl
 - [ ] The patient simulation framework can dynamically scale to any requested number of patients without being hardcoded to 100k.
 - [ ] Tolerance and addiction progression models are integrated and configurable.
 - [ ] Existing core tests (ZEROPAIN and KEYSTONE native tests) still pass.
+
+## 2026-07-06T22:17:19Z
+
+# Teamwork Project Prompt
+
+> Goal: Execute the teamwork preview
+
+Fully integrate QIHSE and KEYSTONE backends into the ZEROPAIN framework by fixing the remaining failing native integration tests and ensuring the auto-routing path is stable.
+
+Working directory: /fast/Main Workspace/ZEROPAIN
+Integrity mode: development
+
+## Requirements
+
+### R1. Fix Auto-Routing Native Test
+Investigate and fix the failing auto-routing test in `test_auto_backend.c` (where the expected decision source differs from the compiled router path) so that KEYSTONE core native tests pass on this host.
+
+### R2. Maintain Existing Functionality
+Ensure that the fix does not break any of the already passing tests in the KEYSTONE and ZEROPAIN test suites.
+
+## Verification Resources
+The failing test can be run using the compiled binary: `third_party/KEYSTONE/bin/test_auto_backend`. The environment variables like `LD_LIBRARY_PATH` and `KEYSTONE_HOME` must be set correctly.
+
+## Acceptance Criteria
+
+### Test Suite Passes
+- [ ] Running `third_party/KEYSTONE/bin/test_auto_backend` yields a success exit code and no assertion failures.
+- [ ] Running the full ZEROPAIN and KEYSTONE test suites passes successfully.
+

@@ -159,8 +159,8 @@ class MedicalDataGenerator:
                     }
                     for med in random.sample(
                         [
-                            "SR-17018",
-                            "SR-14968",
+                            "SR-16435",
+                            "Buprenorphine",
                             "Oxycodone",
                             "Gabapentin",
                             "Pregabalin",
@@ -225,7 +225,7 @@ class MedicalDataGenerator:
                     start_date="-1y", end_date="today"
                 ).isoformat(),
                 "treatment_arm": random.choice(
-                    ["SR-17018", "SR-14968", "Combination", "Placebo"]
+                    ["SR-16435", "Buprenorphine", "Combination", "Placebo"]
                 ),
                 "baseline_pain": random.randint(6, 10),
                 "week_1_pain": random.randint(3, 8),

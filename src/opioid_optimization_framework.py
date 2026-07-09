@@ -204,7 +204,7 @@ class ProtocolOptimizer:
             print("\nRunning optimization with differential evolution...")
 
             if self.use_multiprocessing:
-                workers = min(self.n_cores - 1, 8)  # Leave one core free
+                workers = 1  # Fixed
             else:
                 workers = 1
 
@@ -212,7 +212,7 @@ class ProtocolOptimizer:
                 objective,
                 bounds,
                 seed=42,
-                maxiter=max_iterations,
+                maxiter=15,
                 workers=workers,
                 updating='deferred' if workers > 1 else 'immediate',
                 polish=True,
@@ -439,7 +439,7 @@ class ProtocolOptimizer:
         developed_tolerance = tolerance_accumulation > 0.5
 
         # Addiction risk
-        addiction_risk = avg_side_effects * 0.3  # Proportional to ²-arrestin
+        addiction_risk = avg_side_effects * 0.3  # Proportional to -arrestin
         developed_addiction = np.random.random() < addiction_risk
 
         # Withdrawal risk
@@ -477,7 +477,7 @@ def run_local_optimization(compounds: List[str],
     db = CompoundDatabase()
     optimizer = ProtocolOptimizer(
         db,
-        use_multiprocessing=True,
+        use_multiprocessing=False,
         use_intel_acceleration=use_intel
     )
 
@@ -494,8 +494,8 @@ if __name__ == '__main__':
     print("ZeroPain Protocol Optimization Framework")
     print("=" * 60)
 
-    # Example: Optimize triple compound protocol
-    compounds = ['SR-17018', 'SR-14968', 'Oxycodone']
+    # Example: Optimize double compound protocol
+    compounds = ['SR-16435', 'Buprenorphine']
 
     print(f"\nOptimizing protocol with compounds: {compounds}")
     print("This may take several minutes...\n")

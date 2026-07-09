@@ -75,7 +75,7 @@ def run_cli(args: List[str]) -> int:
     parser.add_argument('--optimize', action='store_true', help='Run protocol optimisation')
     parser.add_argument('--list-compounds', action='store_true', help='List available compounds')
     parser.add_argument('--payload', type=str, help='Path to JSON payload file')
-    parser.add_argument('--compounds', nargs='+', default=['SR-17018'], help='Compounds')
+    parser.add_argument('--compounds', nargs='+', default=['SR-16435'], help='Compounds')
     parser.add_argument('--doses', nargs='+', type=float, default=[10.0], help='Doses (mg)')
     parser.add_argument('--frequencies', nargs='+', type=int, default=[2], help='Frequencies')
     parser.add_argument('--n-patients-sim', type=int, default=1000, help='Population size (scalable)')
@@ -147,7 +147,7 @@ def run_cli(args: List[str]) -> int:
             gen_kwargs = {'population_size': parsed.n_patients_sim}
             if parsed.elderly_skew:
                 from patient_simulation import AgeDistribution
-                gen_kwargs['age_distribution'] = AgeDistribution(mean=78.0, std=5.0)
+                gen_kwargs['age_distribution'] = AgeDistribution(alpha=5.0, beta=2.0, min_age=65, max_age=95)
             
             gen_config = PatientGenerationConfig(**gen_kwargs)
             
@@ -160,8 +160,14 @@ def run_cli(args: List[str]) -> int:
                 for k, v in gen_config.pre_existing_medications.items():
                     v.prevalence = min(1.0, v.prevalence * parsed.polypharmacy_rate)
             if parsed.high_tolerance_skew:
-                for k, v in gen_config.pre_existing_medications.items():
-                    v.baseline_tolerance = getattr(v, 'baseline_tolerance', 0.0) + 0.3
+                from patient_simulation import MedicationProfile
+                gen_config.pre_existing_medications['street_opioids'] = MedicationProfile(
+                    name="Street Fentanyl/Heroin",
+                    prevalence=1.0, # 100% of the population
+                    baseline_tolerance=0.90, # 90% receptor downregulation
+                    sensitivity_multiplier=0.4, # Burned out receptors
+                    side_effect_bias=0.2
+                )
             
             sim_results = sim.run_simulation(
                 n_patients=parsed.n_patients_sim,
@@ -254,7 +260,7 @@ def process_request(payload: Dict[str, Any]) -> Dict[str, Any]:
         if raw_compounds and isinstance(raw_compounds[0], str):
             default_names = raw_compounds
         else:
-            default_names = ['SR-17018']
+            default_names = ['SR-16435']
         compound_names = proto_data.get('compounds', payload.get('compound_names', default_names))
         doses = proto_data.get('doses', payload.get('doses', [10.0] * len(compound_names)))
         frequencies = proto_data.get('frequencies', payload.get('frequencies', [2] * len(compound_names)))

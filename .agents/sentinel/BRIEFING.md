@@ -1,14 +1,14 @@
-# BRIEFING — 2026-07-06T10:38:33Z
+# BRIEFING — 2026-07-06T22:17:19Z
 
 ## Mission
-Coordinate the implementation of the DSMIL adapter and PK/PD simulation scalability and fidelity enhancements.
+Fully integrate QIHSE and KEYSTONE backends into the ZEROPAIN framework by fixing the remaining failing native integration tests and ensuring the auto-routing path is stable.
 
 ## 🔒 My Identity
 - Archetype: sentinel
 - Working directory: /fast/Main Workspace/ZEROPAIN/.agents/sentinel/
 - Orchestrator: 24533436-ee82-47cd-99ee-26081df67a85
 - Victory Auditor: 273bedbc-dc0a-4cd4-bab9-58516ff13980
-- Orchestrator (New): 33b0883c-6ea3-4be0-859b-8f3583543211
+- Orchestrator (New): 1a1fcd46-9e7f-43b0-b4f6-8faa7143f029
 - Victory Auditor (New): TBD
 
 ## 🔒 Key Constraints
@@ -16,13 +16,13 @@ Coordinate the implementation of the DSMIL adapter and PK/PD simulation scalabil
 - Victory Audit is MANDATORY before reporting completion
 
 ## User Context
-- **Last user request**: Implement DSMIL adapter, PK/PD tunables, and patient simulation scaling.
+- **Last user request**: Fix the failing auto-routing native test in test_auto_backend.c.
 - **Pending clarifications**: none
-- **Delivered results**: none (new request starting)
+- **Delivered results**: none
 
 ## Project Status
 - **Phase**: in progress
-- **Details**: Orchestrator has spawned worker `d3f5df31-8154-4b97-8896-d180ac905844` for implementation.
+- **Details**: Review phase complete. Both Reviewer 1 (7002d946) and Reviewer 2 (05016c12) have verified the implementation of the auto-routing and test stability fixes. All native and python test suites pass cleanly. Reports forwarded to Orchestrator.
 
 ## Victory Audit Status
 - **Triggered**: no
@@ -31,5 +31,5 @@ Coordinate the implementation of the DSMIL adapter and PK/PD simulation scalabil
 
 ## Artifact Index
 - /fast/Main Workspace/ZEROPAIN/.agents/ORIGINAL_REQUEST.md — Verbatim user request record
-- Cron 1 — Progress reporting: 8229d66b-5411-479c-9504-c490881b1f90/task-35
-- Cron 2 — Liveness check: 8229d66b-5411-479c-9504-c490881b1f90/task-37
+- Cron 1 — Progress reporting: 44e4506d-3f21-4b06-89e8-b5ace953c598/task-31
+- Cron 2 — Liveness check: 44e4506d-3f21-4b06-89e8-b5ace953c598/task-33

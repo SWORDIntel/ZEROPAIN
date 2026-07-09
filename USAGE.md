@@ -51,7 +51,7 @@ Analyze → Optimize → Simulate in one command:
 
 ```bash
 python src/zeropain_pipeline.py --full \
-  --compounds SR-17018 SR-14968 Oxycodone \
+  --compounds SR-16435 Buprenorphine \
   --n-patients-opt 1000 \
   --n-patients-sim 100000 \
   --output-dir results/
@@ -61,7 +61,7 @@ python src/zeropain_pipeline.py --full \
 
 ```bash
 python src/zeropain_pipeline.py --optimize \
-  --compounds SR-17018 Oxycodone \
+  --compounds SR-16435 Buprenorphine \
   --n-patients-opt 1000 \
   --max-iterations 100 \
   --intel  # Enable Intel acceleration
@@ -77,7 +77,7 @@ python src/zeropain_pipeline.py --simulate \
 
 # With direct compounds
 python src/zeropain_pipeline.py --simulate \
-  --compounds SR-17018 Oxycodone \
+  --compounds SR-16435 Buprenorphine \
   --n-patients-sim 10000
 ```
 
@@ -173,7 +173,7 @@ for compound in safe_compounds:
 Via command line:
 ```bash
 python src/zeropain_pipeline.py --optimize \
-  --compounds SR-17018 SR-14968 \
+  --compounds SR-16435 Buprenorphine \
   --intel
 ```
 
@@ -217,8 +217,8 @@ The database includes:
 - Oliceridine (TRV130), Nalbuphine
 
 **Experimental:**
-- SR-17018 (allosteric modulator, reverses tolerance)
-- SR-14968 (highly biased agonist)
+- SR-16435 (allosteric modulator, reverses tolerance)
+- Buprenorphine (highly biased agonist)
 - PZM21 (computationally designed)
 - Mitragynine (natural compound)
 
@@ -239,7 +239,7 @@ Each compound includes:
 from opioid_optimization_framework import run_local_optimization
 
 result = run_local_optimization(
-    compounds=['SR-17018', 'SR-14968', 'Oxycodone'],
+    compounds=['SR-16435', 'Buprenorphine', 'Oxycodone'],
     n_patients=1000,
     max_iterations=100,
     use_intel=True
@@ -263,7 +263,7 @@ optimizer = ProtocolOptimizer(
 )
 
 result = optimizer.optimize_protocol(
-    base_compounds=['SR-17018', 'Oxycodone'],
+    base_compounds=['SR-16435', 'Oxycodone'],
     n_patients=5000,
     max_iterations=200,
     target_success_rate=0.75
@@ -279,7 +279,7 @@ from patient_simulation_100k import run_100k_simulation
 from opioid_optimization_framework import ProtocolConfig
 
 protocol = ProtocolConfig(
-    compounds=['SR-17018', 'SR-14968', 'Oxycodone'],
+    compounds=['SR-16435', 'Buprenorphine', 'Oxycodone'],
     doses=[16.17, 25.31, 5.07],
     frequencies=[2, 1, 4]
 )
@@ -325,7 +325,7 @@ All results are saved as JSON for easy parsing:
 ```json
 {
   "optimal_protocol": {
-    "compounds": ["SR-17018", "Oxycodone"],
+    "compounds": ["SR-16435", "Oxycodone"],
     "doses": [16.2, 5.1],
     "frequencies": [2, 4]
   },
@@ -379,7 +379,7 @@ print(f"Bias ratio: {best.get_bias_ratio():.1f}x")
 
 ```python
 # Select compounds with tolerance-preventing properties
-compounds = ['SR-17018', 'Buprenorphine', 'PZM21']
+compounds = ['SR-16435', 'Buprenorphine', 'PZM21']
 
 result = run_local_optimization(
     compounds,
@@ -414,7 +414,7 @@ db.add_custom_compound(safer_morphine)
 
 # Test in optimization
 result = run_local_optimization(
-    ['SaferMorphine', 'SR-17018'],
+    ['SaferMorphine', 'SR-16435'],
     n_patients=1000
 )
 ```

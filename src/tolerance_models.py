@@ -43,12 +43,17 @@ class SigmoidTolerance(ToleranceModel):
     def __init__(self, max_factor: float = 3.0, half_life_days: float = 14.0):
         self.max_factor = max_factor
         self.half_life_days = max(half_life_days, 1e-3)
+        self.exposure_time = 0.0
 
     def update(self, state: ToleranceState, exposure: float, dt_days: float) -> ToleranceState:
-        k = math.log(2) / self.half_life_days
-        target = self.max_factor * (1 - math.exp(-k * exposure))
-        delta = (target - state.level) * (1 - math.exp(-k * dt_days))
-        state.level = max(0.0, min(state.level + delta, self.max_factor))
+        if exposure > 1e-4:
+            # Scale time progression by exposure relative to typical full agonist (exposure ~ 0.5)
+            self.exposure_time += dt_days * min(exposure / 0.5, 1.0)
+        else:
+            self.exposure_time = max(0.0, self.exposure_time - dt_days)
+            
+        t = self.exposure_time
+        state.level = self.max_factor * (t**2 / (self.half_life_days**2 + t**2 + 1e-9))
         state.ceiling = self.max_factor
         return state
 
@@ -134,7 +139,38 @@ class LinearAddiction(AddictionModel):
         return state
 
 
+class CalibratedAddiction(AddictionModel):
+    def __init__(self, max_incidence: float, ec50_mme: float, hill_n: float, mme_to_dopamine: float):
+        self.max_inc = max_incidence
+        self.ec50_mme = ec50_mme
+        self.hill_n = hill_n
+        self.mme_to_dopamine = mme_to_dopamine
+        self.cumulative_dopamine = 0.0
+
+    def update(self, state: AddictionState, dopamine_release: float, dt_days: float) -> AddictionState:
+        self.cumulative_dopamine += dopamine_release
+        eq_mme = self.cumulative_dopamine / max(self.mme_to_dopamine, 1e-9)
+        risk = self.max_inc * (eq_mme**self.hill_n / (self.ec50_mme**self.hill_n + eq_mme**self.hill_n + 1e-9))
+        state.level = risk
+        
+        # DEBUG
+        if not hasattr(self, "_debug_printed") and self.cumulative_dopamine > 0:
+
+            self._debug_printed = True
+            
+        return state
+
+
 def make_addiction_model(config: Dict) -> AddictionModel:
+    if "clinical" in config:
+        clinical = config["clinical"]
+        return CalibratedAddiction(
+            max_incidence=clinical.get("max_incidence", 0.25),
+            ec50_mme=clinical.get("ec50_mme", 5000.0),
+            hill_n=clinical.get("hill_n", 1.0),
+            mme_to_dopamine=clinical.get("mme_to_dopamine_factor", 0.8)
+        )
+    
     name = config.get("model", "linear")
     slope = config.get("addiction_slope", config.get("slope", 0.005))
     threshold = config.get("addiction_threshold", config.get("threshold", 60.0))

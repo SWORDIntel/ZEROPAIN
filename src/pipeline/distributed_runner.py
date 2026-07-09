@@ -238,28 +238,98 @@ class DistributedRunner:
         results: List[Any] = []
         completed = 0
 
+        pending_batches = []
         for batch_idx, batch in enumerate(batches):
-            if self._shutdown_requested:
-                log.warning("Shutdown requested — stopping after %d/%d batches.", completed, n_batches)
-                break
-
             ckpt_path = self.checkpoints_dir / f"{stage_name}-{batch_idx}.json"
-
-            # --- Try to resume from checkpoint ---
             if self.resume and ckpt_path.exists():
                 payload = _safe_load(ckpt_path)
                 if payload is not None:
                     restored = load_fn(payload) if load_fn else payload
                     results.extend(restored)
                     completed += 1
-                    self._manifest.update(completed_batches=completed)
                     continue
-                # Corrupt checkpoint — fall through to recompute
+            pending_batches.append((batch_idx, batch))
+            
+        self._manifest.update(completed_batches=completed)
 
-            # --- Compute with retries ---
+        if not pending_batches:
+            self._manifest.update(status="complete")
+            return results
+
+        import pickle
+        is_picklable = True
+        try:
+            pickle.dumps(func)
+        except Exception:
+            is_picklable = False
+
+        use_process_pool = (
+            self.backend == "local"
+            and is_picklable
+            and len(pending_batches) > 1
+        )
+
+        if use_process_pool:
+            import concurrent.futures
+            import multiprocessing
+            
+            ctx = multiprocessing.get_context("spawn")
+            system_cores = multiprocessing.cpu_count()
+            # Reserve 4 cores for the system/UI to prevent lag, but use at least 1 core
+            available_cores = max(1, system_cores - 4)
+            workers = min(available_cores, len(pending_batches) or 1)
+
+            if workers > 1:
+                with concurrent.futures.ProcessPoolExecutor(max_workers=workers, mp_context=ctx) as executor:
+                    future_to_idx = {
+                        executor.submit(
+                            _global_batch_worker,
+                            func,
+                            batch,
+                            self.max_retries,
+                            self.retry_base_delay,
+                            stage_name,
+                            batch_idx
+                        ): batch_idx 
+                        for batch_idx, batch in pending_batches
+                    }
+                    
+                    for future in concurrent.futures.as_completed(future_to_idx):
+                        if self._shutdown_requested:
+                            log.warning("Shutdown requested — stopping.")
+                            executor.shutdown(wait=False, cancel_futures=True)
+                            break
+                            
+                        batch_idx = future_to_idx[future]
+                        try:
+                            computed = future.result()
+                        except Exception as exc:
+                            log.error("Batch %d failed: %s", batch_idx, exc)
+                            raise
+                            
+                        ckpt_path = self.checkpoints_dir / f"{stage_name}-{batch_idx}.json"
+                        to_store = dump_fn(computed) if dump_fn else computed
+                        try:
+                            _atomic_write(ckpt_path, to_store)
+                        except OSError as exc:
+                            log.warning("Could not write checkpoint %s: %s", ckpt_path, exc)
+                            
+                        results.extend(computed)
+                        completed += 1
+                        self._manifest.update(completed_batches=completed)
+
+                final_status = "complete" if completed == n_batches else "partial"
+                self._manifest.update(status=final_status, completed_batches=completed)
+                return results
+
+        # Fallback to sequential / standard loop (with self._run_with_retries)
+        for batch_idx, batch in pending_batches:
+            if self._shutdown_requested:
+                log.warning("Shutdown requested — stopping after %d/%d batches.", completed, n_batches)
+                break
+
+            ckpt_path = self.checkpoints_dir / f"{stage_name}-{batch_idx}.json"
             computed = self._run_with_retries(func, batch, batch_idx, stage_name)
-
-            # --- Atomic checkpoint write ---
             to_store = dump_fn(computed) if dump_fn else computed
             try:
                 _atomic_write(ckpt_path, to_store)
@@ -273,6 +343,10 @@ class DistributedRunner:
         final_status = "complete" if completed == n_batches else "partial"
         self._manifest.update(status=final_status, completed_batches=completed)
         return results
+
+    def close(self):
+        """Clean up backends."""
+        pass
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -368,11 +442,50 @@ class DistributedRunner:
 
         try:
             signal.signal(signal.SIGINT, _handler)
-            signal.signal(signal.SIGTERM, _handler)
+            signal.signal(signal.SIGTERM, signal.SIG_IGN)
         except (OSError, ValueError):
-            # Not in main thread — skip handler registration
             pass
+def _global_batch_worker(
+    func: Callable[[Any], Any],
+    batch: List[Any],
+    max_retries: int,
+    retry_base_delay: float,
+    stage_name: str,
+    batch_idx: int
+) -> List[Any]:
+    """Helper to process a batch of items with retry logic."""
+    import os
+    import time
+    import logging
+    log = logging.getLogger(__name__)
+    try:
+        # Lower process priority so it doesn't cause UI lag
+        os.nice(10)
+    except AttributeError:
+        pass # Windows doesn't support os.nice
 
+    last_exc = None
+    delay = retry_base_delay
+    for attempt in range(max_retries + 1):
+        try:
+            return [func(item) for item in batch]
+        except Exception as exc:
+            last_exc = exc
+            if attempt < max_retries:
+                log.warning(
+                    "Batch %d/%s failed (attempt %d/%d): %s — retrying in %.1f s",
+                    batch_idx, stage_name, attempt + 1, max_retries, exc, delay,
+                )
+                time.sleep(min(delay, 30.0))
+                delay *= 2.0
+            else:
+                log.error(
+                    "Batch %d/%s failed after %d attempts: %s",
+                    batch_idx, stage_name, max_retries + 1, exc,
+                )
+    raise RuntimeError(
+        f"Batch {batch_idx} ({stage_name}) failed after {max_retries + 1} attempts"
+    ) from last_exc
 
 # ---------------------------------------------------------------------------
 # Utilities

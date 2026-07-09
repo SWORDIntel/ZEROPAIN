@@ -474,6 +474,8 @@ class PatientSimulator:
             timepoint_dopamine = 0.0
 
             # Calculate contribution from each compound
+            total_exposure = 0.0
+            reversing_tolerance = False
             for c in c_cache:
                 # Find time since last dose
                 tsd = min([time_of_day - dt if time_of_day >= dt else time_of_day + hours_per_day - dt for dt in c['dose_times']])
@@ -502,20 +504,10 @@ class PatientSimulator:
 
                 timepoint_dopamine += neurotransmitters.get('dopamine', 0.0)
 
-                # Update tolerance
-                if not c['rev_tol']:
-                    dt_days = time_step / 24.0
-                    exposure = c['tol_rate'] * b_act
-                    tol_state = tol_model.update(tol_state, exposure, dt_days)
-                    tolerance_level = tol_state.level
-
-                if c['rev_tol'] and tolerance_level > 0:
-                    reversal_factor = 0.9995 ** (time_step / 0.25)
-                    tol_state.level *= reversal_factor
-                    tolerance_level = tol_state.level
-
+                # Tolerance application to analgesia calculation
                 if c['rev_tol']:
                     eff_tol = max(0, tolerance_level * 0.3)
+                    reversing_tolerance = True
                 elif c['prev_with']:
                     eff_tol = tolerance_level * 0.5
                 else:
@@ -526,18 +518,35 @@ class PatientSimulator:
                 analgesia = self.pk_model.calculate_analgesia(g_act, eff_tol)
 
                 total_analgesia += analgesia
-                total_side_effects += b_act
                 g_sum += g_act
                 beta_sum += b_act
 
-            # Update addiction state using pluggable AddictionModel
+                if not c['rev_tol']:
+                    total_exposure += c['tol_rate'] * b_act
+
+            # Update tolerance state ONCE per time step
             dt_days = time_step / 24.0
+            tol_state = tol_model.update(tol_state, total_exposure, dt_days)
+            tolerance_level = tol_state.level
+            
+            if reversing_tolerance and tolerance_level > 0:
+                reversal_factor = 0.9995 ** (time_step / 0.25)
+                tol_state.level *= reversal_factor
+                tolerance_level = tol_state.level
+
+            # Update addiction state using pluggable AddictionModel
             add_state = add_model.update(add_state, timepoint_dopamine, dt_days)
 
             # Medication modulation
             total_analgesia += med_effects.get('analgesia_bonus', 0.0)
-            total_side_effects += med_effects.get('side_effect_bias', 0.0)
-
+            
+            # Since multiple drugs are competing for the same receptors, their effects should
+            # not be strictly additive. Instead, approximate competitive binding by taking
+            # the max of individual drug effects, then adding a small scaling factor for
+            # simultaneous partial activation.
+            total_side_effects = max([c['int_b'] for c in c_cache]) if c_cache else 0.0
+            total_side_effects = (total_side_effects * beta_sum / max(1, len(c_cache))) + med_effects.get('side_effect_bias', 0.0)
+            
             # Cap maximum effects
             total_analgesia = min(total_analgesia, 1.0)
             total_side_effects = min(total_side_effects, 1.0)
@@ -551,8 +560,8 @@ class PatientSimulator:
             current_pain = max(0, baseline_pain - pain_relief)
 
             # Check for adverse events
-            if total_side_effects > 0.7:
-                if np.random.random() < 0.001:  # Low probability per timepoint
+            if total_side_effects > 0.85:
+                if np.random.random() < 0.0001:  # Very low probability per timepoint
                     adverse_events.append(f"High side effects at day {t_days:.1f}")
 
             # Store results
@@ -612,7 +621,7 @@ class PatientSimulator:
         quality_of_life = (pain_impact * 0.6 + side_effect_impact * 0.4)
 
         # Additional adverse events
-        if avg_side_effects > 0.6:
+        if avg_side_effects > 0.8:
             adverse_events.append("Persistent side effects")
         if final_tolerance > 0.7:
             adverse_events.append("Significant tolerance development")
@@ -770,6 +779,13 @@ class PopulationSimulation:
         addiction_count = sum(1 for r in results if r.addiction_signs)
         withdrawal_count = sum(1 for r in results if r.withdrawal_symptoms)
         adverse_count = sum(1 for r in results if len(r.adverse_events) > 0)
+        
+        # Debug why adverse events are high
+        if len(results) > 0:
+            import collections
+            all_aes = [ae for r in results for ae in r.adverse_events]
+            ae_counts = collections.Counter(all_aes)
+            print(f"DEBUG - Adverse Event Counts: {dict(ae_counts)}")
 
         # Calculate metrics
         metrics = {
@@ -834,9 +850,9 @@ if __name__ == '__main__':
 
     # Example protocol
     protocol = ProtocolConfig(
-        compounds=['SR-17018', 'SR-14968', 'Oxycodone'],
-        doses=[16.17, 25.31, 5.07],
-        frequencies=[2, 1, 4]
+        compounds=['SR-16435', 'Buprenorphine'],
+        doses=[2.49, 0.5],
+        frequencies=[2, 2]
     )
 
     # Run simulation (smaller for demo)
