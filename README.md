@@ -307,8 +307,13 @@ pytest tests/test_resilience.py -v   # 16 resilience unit tests (~1 s)
 
 ---
 
-## License
+## License & Intellectual Property
 
-This project is licensed under the [GNU Affero General Public License v3.0 (AGPL-3.0)](LICENSE).  
-**Patent Pending** — Copyright © 2026 ZeroPain Therapeutics / SWORDIntel.
+**PROPRIETARY AND CONFIDENTIAL — PATENT PENDING WORLDWIDE**  
+Copyright © 2026 ZeroPain Therapeutics / SWORDIntel. All Rights Reserved.
+
+This repository and the underlying pharmaceutical compositions, biophase models, molar ratios, and simulation code are strictly licensed under the terms of the [Sovereign Intellectual Property & Trade Secret Protective License](LICENSE).
+
+**UNAUTHORIZED COMMERCIAL USE, DECOMPILATION, AI MODEL INGESTION/TRAINING, CLINICAL PRACTICE, OR SYNTHETIC COMPOUNDING IS STRICTLY PROHIBITED AND SUBJECT TO IMMEDIATE LEGAL INJUNCTION AND LIQUIDATED DAMAGES UNDER THE LAWS OF ENGLAND AND WALES.**
+
 

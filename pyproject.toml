@@ -7,9 +7,9 @@ name = "zeropain"
 version = "4.0.0"
 description = "Research framework for pharmacology simulation, docking, and auditable therapeutic protocol experiments."
 readme = "README.md"
-license = { text = "AGPL-3.0 (Patent Pending)" }
+license = { text = "Proprietary (Patent Pending — All Rights Reserved)" }
 classifiers = [
-  "License :: OSI Approved :: GNU Affero General Public License v3 or later (AGPLv3+)",
+  "License :: Other/Proprietary License",
 ]
 requires-python = ">=3.11"
 dependencies = [
