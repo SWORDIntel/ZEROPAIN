@@ -8,6 +8,11 @@
 - [x] Recalibrate PK/PD biophase calculations (incorporating plasma protein binding $f_u$, physiological volume of distribution $V_d$, and molar unit conversions) to reflect clinical human pill dosing.
 - [x] Lock in Tri-Vector Architecture documentation (`doc/clinical_dosages.md` and `doc/protocol_justification.md`): SR-14968 tolerance inversion, SR-16435 NOP anti-abuse clamping, outpatient 30.9% accident headroom with Buprenorphine 0.5 mg BID, and Levorphanol quad-action oncology protocol.
 - [x] Stage, execute, and retrieve results for 5-minute recalibrated NVIDIA L40S simulation (`aijob-e00q5g3y0gz3herj1d`, 38,612,672 virtual patients in 279.0s). Confirmed 97.74% pooled analgesia maintenance and 40.7%–40.8% trough free MOR headroom across standard chronic cohorts. Budget settled at $0.23.
+- [x] Commit and push full codebase, calibrated biophase PK/PD engine, clinical dosing documentation, and empirical verification reports to remote repository (`origin/master`).
+
+## Next Execution Milestone
+
+- [ ] Prepare and launch 10-minute NVIDIA H100 SXM5 scale test run (600s, 500k batch chunking) on Nebius to evaluate throughput and stability under locked-in outpatient triplet (SR-16435 2.5 mg + SR-14968 20.0 mg + Buprenorphine 0.5 mg BID).
 
 ## Remaining before clinical interpretation
 

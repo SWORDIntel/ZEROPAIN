@@ -1,0 +1,39 @@
+{
+  "name": "zeropain-mixed-h100",
+  "project_id": "project-e00re3c0pr00026p9jzhq4",
+  "subnet_id": "vpcsubnet-e00j50ben51r17797n",
+  "image": "docker.io/pytorch/pytorch:2.4.1-cuda12.1-cudnn9-runtime",
+  "platform": "gpu-h100-sxm",
+  "preset": "1gpu-16vcpu-200gb",
+  "disk_size": "100Gi",
+  "timeout_hours": 1,
+  "hourly_rate": 3.85,
+  "budget": 5.0,
+  "preemptible": false,
+  "storage": {
+    "bucket": "driver-vuln-training",
+    "endpoint_url": "https://storage.eu-north1.nebius.cloud:443",
+    "prefix": "zeropain"
+  },
+  "mount_path": "/storage",
+  "assets": {
+    "code": "mixed_bundle.tar.gz"
+  },
+  "inject_files": {
+    "run_mixed_h100.sh:/workspace/run_mixed_h100.sh": "run_mixed_h100.sh"
+  },
+  "container_command": "bash",
+  "command": [
+    "bash",
+    "/workspace/run_mixed_h100.sh"
+  ],
+  "smoke_command": [
+    "bash",
+    "/workspace/run_mixed_h100.sh",
+    "--smoke"
+  ],
+  "env": {
+    "HARNESS_OUTPUT_ROOT": "/storage/zeropain/mixed_h100"
+  },
+  "smoke_gpu": false
+}
