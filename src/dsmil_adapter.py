@@ -13,6 +13,11 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 ROOT = Path(__file__).resolve().parents[1]
+SRC_DIR = Path(__file__).resolve().parent
+if str(SRC_DIR) not in sys.path:
+    sys.path.insert(0, str(SRC_DIR))
+if str(ROOT / "src") not in sys.path:
+    sys.path.insert(0, str(ROOT / "src"))
 _CALIBRATED_PARAMS_PATH = ROOT / "calibrated_params.json"
 
 # ---------------------------------------------------------------------------
@@ -93,6 +98,34 @@ def run_cli(args: List[str]) -> int:
     parser.add_argument('--polypharmacy-rate', type=float, default=None, help='Multiplier for pre-existing medication prevalence')
     parser.add_argument('--output', default=None, help='Write JSON results here')
 
+    # Tensor engine & GPU acceleration options
+    parser.add_argument('--tensor-engine', action='store_true', help='Use PyTorch/CUDA tensor vectorized simulation engine')
+    parser.add_argument('--gpu', action='store_true', help='Enable GPU acceleration (CUDA) for tensor engine')
+    parser.add_argument('--device', choices=['cpu', 'cuda', 'auto'], default=None, help='Device for tensor simulation')
+    parser.add_argument('--chunk-size', type=int, default=250000, help='Chunk size for vectorized batching in tensor engine')
+    parser.add_argument('--cohort', choices=['standard', 'polysubstance_crisis', 'multi_organ_failure', 'zombie_market'], default='standard', help='Preconfigured cohort preset')
+
+    # Pharmacogenomics (PGx) parameters
+    parser.add_argument('--pgx-ugt2b7-poor-rate', type=float, default=None, help='Prevalence of UGT2B7 poor metabolizers')
+    parser.add_argument('--pgx-cyp2d6-poor-rate', type=float, default=None, help='Prevalence of CYP2D6 poor metabolizers')
+    parser.add_argument('--pgx-cyp3a4-poor-rate', type=float, default=None, help='Prevalence of CYP3A4 poor metabolizers')
+    parser.add_argument('--pgx-oprm1-a118g-rate', type=float, default=None, help='Prevalence of OPRM1 A118G variant')
+    parser.add_argument('--pgx-comt-met-rate', type=float, default=None, help='Prevalence of COMT Val158Met variant')
+    parser.add_argument('--pgx-abcb1-efflux-loss', type=float, default=None, help='Prevalence of ABCB1 P-gp efflux loss')
+
+    # Street Adulterants & Polysubstance parameters
+    parser.add_argument('--street-fentanyl-rate', type=float, default=None, help='Prevalence of street fentanyl exposure')
+    parser.add_argument('--xylazine-rate', type=float, default=None, help='Prevalence of Xylazine (tranq) exposure')
+    parser.add_argument('--nitazene-rate', type=float, default=None, help='Prevalence of Nitazene exposure')
+    parser.add_argument('--alcohol-rate', type=float, default=None, help='Prevalence of concurrent alcohol abuse')
+
+    # Multi-Organ Impairment parameters
+    parser.add_argument('--child-pugh-c-rate', type=float, default=None, help='Prevalence of severe hepatic failure (Child-Pugh C)')
+    parser.add_argument('--ckd-stage-5-rate', type=float, default=None, help='Prevalence of end-stage renal disease (CKD Stage 5)')
+    parser.add_argument('--copd-severe-rate', type=float, default=None, help='Prevalence of severe COPD / sleep apnea with lost hypoxic drive')
+    parser.add_argument('--cachexia-rate', type=float, default=None, help='Prevalence of severe cachexia (contracted Vd)')
+    parser.add_argument('--morbid-obesity-rate', type=float, default=None, help='Prevalence of morbid obesity (BMI > 50)')
+
     parsed = parser.parse_args(args)
     db = CompoundDatabase()
 
@@ -143,47 +176,111 @@ def run_cli(args: List[str]) -> int:
             }
 
         if parsed.simulate:
-            sim = PopulationSimulation(db)
-            gen_kwargs = {'population_size': parsed.n_patients_sim}
-            if parsed.elderly_skew:
-                from patient_simulation import AgeDistribution
-                gen_kwargs['age_distribution'] = AgeDistribution(alpha=5.0, beta=2.0, min_age=65, max_age=95)
-            
-            gen_config = PatientGenerationConfig(**gen_kwargs)
-            
-            # Apply demographic overrides
-            if parsed.liver_disease_rate is not None:
-                gen_config.comorbidity_prevalence['liver_disease'] = parsed.liver_disease_rate
-            if parsed.kidney_disease_rate is not None:
-                gen_config.comorbidity_prevalence['kidney_disease'] = parsed.kidney_disease_rate
-            if parsed.polypharmacy_rate is not None:
-                for k, v in gen_config.pre_existing_medications.items():
-                    v.prevalence = min(1.0, v.prevalence * parsed.polypharmacy_rate)
-            if parsed.high_tolerance_skew:
-                from patient_simulation import MedicationProfile
-                gen_config.pre_existing_medications['street_opioids'] = MedicationProfile(
-                    name="Street Fentanyl/Heroin",
-                    prevalence=1.0, # 100% of the population
-                    baseline_tolerance=0.90, # 90% receptor downregulation
-                    sensitivity_multiplier=0.4, # Burned out receptors
-                    side_effect_bias=0.2
+            if parsed.tensor_engine or parsed.gpu:
+                try:
+                    import tensor_simulation
+                except ImportError:
+                    from src import tensor_simulation
+
+                device = 'cuda' if parsed.gpu else (parsed.device or 'auto')
+                proto = tensor_simulation.TensorProtocolConfig(
+                    compounds=parsed.compounds,
+                    doses=parsed.doses,
+                    frequencies=[float(f) for f in parsed.frequencies],
+                    duration_days=parsed.duration_days,
                 )
-            
-            sim_results = sim.run_simulation(
-                n_patients=parsed.n_patients_sim,
-                protocol=protocol,
-                duration_days=parsed.duration_days,
-                seed=parsed.seed,
-                generation_config=gen_config,
-                runner=runner,
-                checkpoint_stage='simulation',
-                batch_size=parsed.batch_size,
-                tolerance_config=tolerance_config,
-            )
-            output['simulation'] = {
-                k: v for k, v in sim_results.items()
-                if isinstance(v, (int, float, str, bool, type(None)))
-            }
+
+                overrides: Dict[str, Any] = {}
+                if parsed.pgx_ugt2b7_poor_rate is not None:
+                    overrides['ugt2b7_poor_rate'] = parsed.pgx_ugt2b7_poor_rate
+                if parsed.pgx_cyp2d6_poor_rate is not None:
+                    overrides['cyp2d6_pm_rate'] = parsed.pgx_cyp2d6_poor_rate
+                if parsed.pgx_cyp3a4_poor_rate is not None:
+                    overrides['cyp3a4_pm_rate'] = parsed.pgx_cyp3a4_poor_rate
+                if parsed.pgx_oprm1_a118g_rate is not None:
+                    overrides['oprm1_gg_rate'] = parsed.pgx_oprm1_a118g_rate
+                if parsed.pgx_comt_met_rate is not None:
+                    overrides['comt_val_val_rate'] = parsed.pgx_comt_met_rate
+                if parsed.pgx_abcb1_efflux_loss is not None:
+                    overrides['abcb1_deficient_rate'] = parsed.pgx_abcb1_efflux_loss
+                if parsed.street_fentanyl_rate is not None:
+                    overrides['street_fentanyl_rate'] = parsed.street_fentanyl_rate
+                if parsed.xylazine_rate is not None:
+                    overrides['xylazine_rate'] = parsed.xylazine_rate
+                if parsed.nitazene_rate is not None:
+                    overrides['nitazene_rate'] = parsed.nitazene_rate
+                if parsed.alcohol_rate is not None:
+                    overrides['alcohol_rate'] = parsed.alcohol_rate
+                if parsed.child_pugh_c_rate is not None:
+                    overrides['child_pugh_c_rate'] = parsed.child_pugh_c_rate
+                if parsed.ckd_stage_5_rate is not None:
+                    overrides['ckd_stage5_esrd_rate'] = parsed.ckd_stage_5_rate
+                if parsed.copd_severe_rate is not None:
+                    overrides['copd_gold4_rate'] = parsed.copd_severe_rate
+                if parsed.cachexia_rate is not None:
+                    overrides['cachexia_rate'] = parsed.cachexia_rate
+                if parsed.morbid_obesity_rate is not None:
+                    overrides['morbid_obesity_rate'] = parsed.morbid_obesity_rate
+
+                cohort_target: Any = parsed.cohort
+                if overrides:
+                    base = tensor_simulation.COHORT_PRESETS.get(parsed.cohort, tensor_simulation.CohortConfig())
+                    base_dict = base.to_dict() if hasattr(base, 'to_dict') else dict(base)
+                    base_dict.update(overrides)
+                    cohort_target = tensor_simulation.CohortConfig(**base_dict)
+
+                summary = tensor_simulation.run_tensor_simulation(
+                    total_patients=parsed.n_patients_sim,
+                    protocol=proto,
+                    cohort=cohort_target,
+                    chunk_size=parsed.chunk_size,
+                    device=device,
+                    seed=parsed.seed,
+                    verbose=True,
+                )
+                output['simulation'] = summary.to_dict() if hasattr(summary, 'to_dict') else dict(summary)
+            else:
+                sim = PopulationSimulation(db)
+                gen_kwargs = {'population_size': parsed.n_patients_sim}
+                if parsed.elderly_skew:
+                    from patient_simulation import AgeDistribution
+                    gen_kwargs['age_distribution'] = AgeDistribution(alpha=5.0, beta=2.0, min_age=65, max_age=95)
+                
+                gen_config = PatientGenerationConfig(**gen_kwargs)
+                
+                # Apply demographic overrides
+                if parsed.liver_disease_rate is not None:
+                    gen_config.comorbidity_prevalence['liver_disease'] = parsed.liver_disease_rate
+                if parsed.kidney_disease_rate is not None:
+                    gen_config.comorbidity_prevalence['kidney_disease'] = parsed.kidney_disease_rate
+                if parsed.polypharmacy_rate is not None:
+                    for k, v in gen_config.pre_existing_medications.items():
+                        v.prevalence = min(1.0, v.prevalence * parsed.polypharmacy_rate)
+                if parsed.high_tolerance_skew:
+                    from patient_simulation import MedicationProfile
+                    gen_config.pre_existing_medications['street_opioids'] = MedicationProfile(
+                        name="Street Fentanyl/Heroin",
+                        prevalence=1.0, # 100% of the population
+                        baseline_tolerance=0.90, # 90% receptor downregulation
+                        sensitivity_multiplier=0.4, # Burned out receptors
+                        side_effect_bias=0.2
+                    )
+                
+                sim_results = sim.run_simulation(
+                    n_patients=parsed.n_patients_sim,
+                    protocol=protocol,
+                    duration_days=parsed.duration_days,
+                    seed=parsed.seed,
+                    generation_config=gen_config,
+                    runner=runner,
+                    checkpoint_stage='simulation',
+                    batch_size=parsed.batch_size,
+                    tolerance_config=tolerance_config,
+                )
+                output['simulation'] = {
+                    k: v for k, v in sim_results.items()
+                    if isinstance(v, (int, float, str, bool, type(None)))
+                }
 
         out_json = json.dumps(output, indent=2, default=str)
         if parsed.output:
@@ -322,6 +419,34 @@ def process_request(payload: Dict[str, Any]) -> Dict[str, Any]:
                 'tolerance_rate': opt.tolerance_rate,
                 'addiction_rate': opt.addiction_rate,
             }}
+
+        # Check for tensor engine or GPU request in payload
+        if payload.get('tensor_engine') or payload.get('gpu') or payload.get('backend') == 'tensor' or payload.get('engine') == 'tensor':
+            try:
+                import tensor_simulation
+            except ImportError:
+                from src import tensor_simulation
+
+            device = 'cuda' if payload.get('gpu') else payload.get('device', 'auto')
+            proto = tensor_simulation.TensorProtocolConfig(
+                compounds=protocol.compounds,
+                doses=protocol.doses,
+                frequencies=[float(f) for f in protocol.frequencies],
+                duration_days=duration_days,
+            )
+            cohort_in = payload.get('cohort', 'standard')
+            summary = tensor_simulation.run_tensor_simulation(
+                total_patients=n_patients,
+                protocol=proto,
+                cohort=cohort_in,
+                chunk_size=payload.get('chunk_size', 250000),
+                device=device,
+                seed=seed,
+                verbose=payload.get('verbose', False),
+            )
+            res_dict = summary.to_dict() if hasattr(summary, 'to_dict') else dict(summary)
+            runner.close()
+            return {'ok': True, 'result': {'operation': 'simulate', 'engine': 'tensor', **res_dict}, **res_dict}
 
         # Default: simulate
         sim = PopulationSimulation(db)

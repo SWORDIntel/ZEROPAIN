@@ -47,6 +47,15 @@ outputs/
 !requirements.json
 !package.json
 !package-lock.json
+!cloud/*.json
+
+# Nebius harness & cloud artifacts
+cloud/.harness/
+cloud/*.tar.gz
+runs/
+!runs/**/*.md
+
+
 
 # Custom compounds (keep template but ignore user data)
 custom_compounds.json
