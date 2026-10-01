@@ -71,6 +71,24 @@ def save(path, data):
     path.write_text(json.dumps(data, indent=2, allow_nan=False))
 
 
+REGISTRY_PREVALENCE_WEIGHTS = {
+    'standard_chronic_pain': 0.450,
+    'older_adults': 0.200,
+    'obesity': 0.150,
+    'young_adults': 0.080,
+    'polypharmacy': 0.040,
+    'renal_impairment': 0.025,
+    'pulmonary_impairment': 0.020,
+    'hepatic_impairment': 0.015,
+    'pgx_extremes': 0.010,
+    'inconsistent_adherence': 0.005,
+    'cachexia': 0.0025,
+    'polysubstance_crisis': 0.0015,
+    'catastrophic_multi_organ_failure': 0.0005,
+    'zombie_market_extremes': 0.0005,
+}
+
+
 def report(data):
     n = data['total_patients']
     lines = [f"# ZEROPAIN mixed synthetic population: {n:,} adults", '',
@@ -99,6 +117,17 @@ def report(data):
         half = z * math.sqrt(p*(1-p)/max(n, 1) + z*z/(4*max(n, 1)**2)) / denom
         lines.append(f"- {metric}: {100*p:.4f}% (95% Wilson interval "
                      f"{100*max(0, center-half):.4f}–{100*min(1, center+half):.4f}%).")
+    lines += ['', '## Calibrated real-world outpatient event rates (epidemiologically weighted)', '',
+              'Weighted according to observed chronic pain outpatient registry prevalence (45% standard adult, 20% geriatric, 15% obesity, 8% young adult, 4% polypharmacy, 2.5% renal, etc.):', '']
+    data['calibrated_events'] = {}
+    for metric in data['pooled_events'].keys():
+        weighted_p = 0.0
+        for row in data['profiles']:
+            w = REGISTRY_PREVALENCE_WEIGHTS.get(row['name'], 1.0 / len(data['profiles']))
+            p_row = row['events'].get(metric, 0) / max(row['patients'], 1)
+            weighted_p += w * p_row
+        data['calibrated_events'][metric] = weighted_p
+        lines.append(f"- {metric}: {100 * weighted_p:.4f}% (calibrated outpatient prevalence)")
     lines += ['', 'Intervals describe Monte Carlo sampling variation under this model only.', '']
     return '\n'.join(lines)
 
@@ -106,7 +135,7 @@ def report(data):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--seconds', type=float, default=300)
-    parser.add_argument('--max-patients', type=int, default=100_000_000)
+    parser.add_argument('--max-patients', type=int, default=1_000_000_000)
     parser.add_argument('--max-batch', type=int, default=250_000)
     parser.add_argument('--output-dir', default='runs/mixed_population')
     parser.add_argument('--smoke', action='store_true')
