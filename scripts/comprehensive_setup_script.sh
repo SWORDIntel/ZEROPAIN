@@ -603,7 +603,8 @@ zeropain_framework/
 
 ## License
 
-Proprietary - ZeroPain Therapeutics
+GNU Affero General Public License v3.0 (AGPL-3.0) — **Patent Pending**
+Copyright © 2026 ZeroPain Therapeutics / SWORDIntel.
 EOF
 
 # User guide

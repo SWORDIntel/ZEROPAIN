@@ -285,3 +285,11 @@ pytest tests/test_resilience.py -v   # 16 resilience unit tests (~1 s)
 | `docs/memshadow_docking.md` | MEMSHADOW Bridge integration for Docking |
 | `docs/legacy_stress_tests.md` | Legacy stress test results for earlier protocols |
 | `handover.md` | Session-by-session implementation log |
+
+---
+
+## License
+
+This project is licensed under the [GNU Affero General Public License v3.0 (AGPL-3.0)](LICENSE).  
+**Patent Pending** — Copyright © 2026 ZeroPain Therapeutics / SWORDIntel.
+

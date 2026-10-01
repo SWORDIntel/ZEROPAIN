@@ -195,8 +195,8 @@ chmod +x control_panel_build.sh
 
 ## 📝 License
 
-Proprietary - ZeroPain Therapeutics  
-For authorized research use only
+GNU Affero General Public License v3.0 (AGPL-3.0) — **Patent Pending**  
+Copyright © 2026 ZeroPain Therapeutics / SWORDIntel.
 
 ---
 
