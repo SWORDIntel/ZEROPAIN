@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 from dataclasses import asdict
 
+from research.human_sim.disposition import synthetic_reference_disposition
 from research.human_sim.engine import simulate_human_chain, synthetic_target_panel
 from research.human_sim.physiology import synthetic_reference_physiology
 from zeropain.verified_io import write_json
@@ -31,9 +32,11 @@ def _parser() -> argparse.ArgumentParser:
 
 def build_payload(args: argparse.Namespace) -> dict:
     physiology = synthetic_reference_physiology()
+    disposition = synthetic_reference_disposition()
     targets = synthetic_target_panel()
     result = simulate_human_chain(
         physiology,
+        disposition,
         targets,
         duration_h=args.duration_h,
         dt_h=args.dt_h,
@@ -47,6 +50,7 @@ def build_payload(args: argparse.Namespace) -> dict:
             "validated human calibration data and amount units are not clinical doses."
         ),
         "physiology": physiology.to_dict(),
+        "disposition": disposition.to_dict(),
         "targets": {name: target.to_dict() for name, target in targets.items()},
         "input": {
             "duration_h": args.duration_h,
