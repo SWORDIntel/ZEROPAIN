@@ -54,6 +54,7 @@ jobs:
 
           python -m research.human_sim.run_population \
             research/human_sim/examples/httkpop_synthetic_fixture.csv \
+            --source-id synthetic_fixture \
             --duration-h 3 \
             --dt-h 0.05 \
             --initial-central-units 1.0 \
