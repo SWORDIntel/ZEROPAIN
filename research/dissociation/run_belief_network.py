@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 import argparse
-import json
 from dataclasses import asdict
-from pathlib import Path
 
 from research.dissociation.belief_network import (
     BeliefNetworkConfig,
@@ -15,6 +13,7 @@ from research.dissociation.belief_network import (
 )
 from research.dissociation.model import MechanismInput
 from research.dissociation.state_network import EventKind, TimelineEvent
+from research.dissociation.verified_io import write_json
 
 
 SCENARIOS = {
@@ -48,7 +47,6 @@ SCENARIOS = {
 
 
 def make_facts(steps: int) -> list[FactEvent]:
-    # Fixed truth sequence for reproducibility. The simulator, not the states, knows truth.
     truth_pattern = (1, 1, -1, 1, -1, -1, 1, -1, 1, 1, -1, 1)
     facts = []
     for idx, truth in enumerate(truth_pattern):
@@ -65,11 +63,10 @@ def make_facts(steps: int) -> list[FactEvent]:
 
 
 def make_timeline(config: BeliefNetworkConfig) -> list[TimelineEvent]:
-    timeline = [
+    return [
         TimelineEvent(step=step, kind=EventKind.WAKE, label="wake_sync")
         for step in range(config.sync_interval - 1, config.steps, config.sync_interval)
     ]
-    return timeline
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -84,8 +81,7 @@ def _parser() -> argparse.ArgumentParser:
     return p
 
 
-def main() -> int:
-    args = _parser().parse_args()
+def build_payload(args: argparse.Namespace) -> dict:
     config = BeliefNetworkConfig(
         n_states=args.states,
         steps=args.steps,
@@ -147,13 +143,42 @@ def main() -> int:
     }
     if args.trace:
         payload["traces"] = traces
+    return payload
 
-    out = Path(args.output)
-    out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
 
-    print(f"Wrote {len(results)} belief-network scenarios to {out}")
-    for name, result in results.items():
+def _relations(payload: dict):
+    failures = []
+    for name, result in payload["results"].items():
+        expected = result["sync_expected"]
+        completed = result["sync_completed"]
+        if completed > expected:
+            failures.append(f"{name}: sync_completed={completed} > sync_expected={expected}")
+        if result["false_report_events"] > result["communication_opportunities"]:
+            failures.append(f"{name}: false reports exceed communication opportunities")
+        if result["withholding_events"] > result["communication_opportunities"]:
+            failures.append(f"{name}: withholding exceeds communication opportunities")
+    return (not failures, "; ".join(failures[:6]))
+
+
+def main() -> int:
+    args = _parser().parse_args()
+    payload = build_payload(args)
+    out = write_json(
+        args.output,
+        payload,
+        label="dissociation.belief_network",
+        relations=[_relations],
+        replay=lambda: build_payload(args),
+        metadata={
+            "seed": args.seed,
+            "steps": args.steps,
+            "states": args.states,
+            "trace": args.trace,
+        },
+    )
+
+    print(f"Wrote {len(payload['results'])} belief-network scenarios to {out}")
+    for name, result in payload["results"].items():
         print(
             f"{name:28s} "
             f"trust={result['mean_pairwise_trust']:.3f} "
