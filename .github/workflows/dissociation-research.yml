@@ -62,6 +62,17 @@ jobs:
             --steps 80 --seeds 2 --sync-interval 20 \
             --output /tmp/dissociation_belief_phase_sweep.json
 
+          python -m research.dissociation.parameter_recovery \
+            --subjects 250 --steps 40 \
+            --parameters meth_salience_weight nmda_integration_weight mor_partial_control_weight \
+            --grid-points 7 --passes 3 \
+            --output /tmp/dissociation_parameter_recovery.json
+
+          python -m research.dissociation.model_comparison \
+            --states 4 --steps 240 \
+            --transient-lags 3 --test-every 5 \
+            --output /tmp/dissociation_model_comparison.json
+
           python -m research.dissociation.run_observation_model \
             --states 4 --steps 120 \
             --output /tmp/dissociation_observation_model.json
