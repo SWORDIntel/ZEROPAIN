@@ -14,7 +14,7 @@ from research.dissociation.observable_model import (
 )
 from research.dissociation.observable_design import (
     expected_matrix, observable_jacobian, recover_from_observations,
-    sampled_matrix,
+    sampled_matrix, recovery_quality,
     run_observable_design,
 )
 from research.dissociation.experimental_design import DesignConstraints
@@ -153,3 +153,22 @@ def test_condition_keyed_noise_is_paired_across_subsets():
     )
     assert np.allclose(reduced[0], full[2], equal_nan=True)
     assert np.allclose(reduced[1], full[0], equal_nan=True)
+
+
+
+def test_recovery_quality_does_not_confuse_full_rank_with_precision():
+    poor = {
+        "status": "fit",
+        "mean_parameter_relative_error": 0.44,
+        "heldout_loss": 1.2,
+        "heldout_oracle_noise_floor": 0.4,
+    }
+    assert not recovery_quality(poor)["adequate"]
+    adequate = {
+        "status": "fit",
+        "mean_parameter_relative_error": 0.08,
+        "heldout_loss": 0.5,
+        "heldout_oracle_noise_floor": 0.45,
+    }
+    assert recovery_quality(adequate)["adequate"]
+    assert not recovery_quality(None)["adequate"]
