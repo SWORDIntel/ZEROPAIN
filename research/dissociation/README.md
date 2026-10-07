@@ -535,3 +535,64 @@ held-out model comparison
 ```
 
 before it is treated as worth fitting to real longitudinal observations.
+
+
+## Jacobian/SVD identifiability
+
+Parameter recovery can succeed even when two coefficients are nearly interchangeable.
+The local identifiability analysis directly measures that problem:
+
+```bash
+python -m research.dissociation.identifiability \
+  --subjects 500 \
+  --steps 60 \
+  --replicates 3 \
+  --output runs/dissociation_identifiability.json
+```
+
+It finite-differences each selected mechanism coefficient across all fitting conditions
+and observable metrics, producing a normalized Jacobian.
+
+The tool reports:
+
+- singular values;
+- numerical rank;
+- condition number;
+- per-parameter sensitivity norm;
+- pairwise cosine similarity between parameter-effect vectors;
+- parameter pairs whose effect vectors are nearly parallel.
+
+A coefficient may be highly sensitive but still **not identifiable** if another
+coefficient produces almost the same observable pattern.
+
+## Repeated-seed model-selection stability
+
+One synthetic dataset is insufficient to select an observation model. Run the same
+comparison over independent state/observation seeds:
+
+```bash
+python -m research.dissociation.model_selection_stability \
+  --seeds 8 \
+  --steps 480 \
+  --output runs/dissociation_model_selection_stability.json
+```
+
+For baseline, meth, NMDA and meth+NMDA scenarios it records:
+
+- the held-out RMSE winner for every seed;
+- the BIC winner for every seed;
+- median and mean held-out RMSE by model;
+- median held-out R²;
+- median BIC;
+- winner counts.
+
+The candidate stack now includes both:
+
+```text
+mixture + compact state-derivative transient
+mixture + high-dimensional pair-specific transient
+```
+
+The pair-specific model is deliberately retained as an overfitting control. If it wins
+training fit but repeatedly loses held-out prediction/BIC, that is useful evidence
+against paying for that complexity.
