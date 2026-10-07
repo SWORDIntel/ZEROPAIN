@@ -471,6 +471,54 @@ def permute_mechanisms_within_subject(rows: Sequence[dict], seed: int) -> list[d
     return result
 
 
+def _score_map(scores: Sequence[ModelScore]) -> dict[str, ModelScore]:
+    return {score.model: score for score in scores}
+
+
+def discrimination_diagnostics(
+    original: Sequence[ModelScore],
+    permuted: Sequence[ModelScore],
+) -> dict[str, float | str]:
+    """Quantify model-family separation instead of relying on rank alone."""
+    orig = _score_map(original)
+    perm = _score_map(permuted)
+
+    null_names = [
+        name for name in ("mean_only", "history_only", "context_only", "context_history")
+        if name in orig
+    ]
+    mechanism_names = [
+        name for name in ("mechanism_only", "context_plus_mechanism", "full")
+        if name in orig
+    ]
+    if not null_names or not mechanism_names:
+        return {"status": "insufficient_model_families"}
+
+    best_null = min(null_names, key=lambda name: orig[name].test_mse)
+    best_mechanism = min(mechanism_names, key=lambda name: orig[name].test_mse)
+    best_mechanism_permuted = min(
+        mechanism_names, key=lambda name: perm[name].test_mse
+    )
+
+    null_mse = orig[best_null].test_mse
+    mech_mse = orig[best_mechanism].test_mse
+    perm_mse = perm[best_mechanism_permuted].test_mse
+    return {
+        "status": "ok",
+        "best_null_model": best_null,
+        "best_mechanism_model": best_mechanism,
+        "best_permuted_mechanism_model": best_mechanism_permuted,
+        "best_null_mse": null_mse,
+        "best_mechanism_mse": mech_mse,
+        "mechanism_gain_over_null_fraction": (
+            (null_mse - mech_mse) / max(null_mse, 1e-12)
+        ),
+        "mechanism_permutation_penalty_fraction": (
+            (perm_mse - mech_mse) / max(mech_mse, 1e-12)
+        ),
+    }
+
+
 def benchmark_truth(
     truth: str,
     *,
@@ -491,6 +539,7 @@ def benchmark_truth(
         "best_test_model": original[0].model,
         "best_bic_model": min(original, key=lambda score: score.train_bic).model,
         "permuted_best_test_model": permuted[0].model,
+        "discrimination": discrimination_diagnostics(original, permuted),
     }
 
 
@@ -555,6 +604,12 @@ def main() -> int:
             f"best_bic={result['best_bic_model']:24s} "
             f"after_mechanism_permutation={result['permuted_best_test_model']}"
         )
+        diag = result["discrimination"]
+        if diag.get("status") == "ok":
+            print(
+                f"  mechanism_gain_vs_null={diag['mechanism_gain_over_null_fraction']:+.3f} "
+                f"permutation_penalty={diag['mechanism_permutation_penalty_fraction']:+.3f}"
+            )
         for score in result["scores"][:4]:
             print(
                 f"  {score['model']:24s} "
