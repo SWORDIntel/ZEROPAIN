@@ -474,12 +474,16 @@ def simulate_belief_network(
                         step_false += 1
 
                     existing = beliefs[dst, fact_idx]
-                    if not np.isnan(existing) and existing != report:
+                    if np.isnan(existing):
+                        # First transmission can earn a small amount of trust, but
+                        # repeated restatement of the same claim must not ratchet
+                        # trust toward 1.0 indefinitely.
+                        trust[src, dst] += 0.25 * params.resolved_agreement_gain
+                        trust[dst, src] += 0.25 * params.resolved_agreement_gain
+                    elif existing != report:
                         trust[src, dst] -= params.contradiction_trust_loss
                         trust[dst, src] -= params.contradiction_trust_loss
-                    else:
-                        trust[src, dst] += params.resolved_agreement_gain
-                        trust[dst, src] += params.resolved_agreement_gain
+                    # Existing agreement is informationally redundant: no trust gain.
 
                     beliefs[dst, fact_idx] = report
 
