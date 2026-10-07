@@ -6,6 +6,7 @@ from research.human_sim.population import (
     detect_population_format,
     load_httkpop_csv,
     load_pksim_csv,
+    load_population_csv,
     summarize_population,
 )
 
@@ -121,3 +122,20 @@ def test_format_detection_distinguishes_httk_and_pksim(tmp_path):
     httk = tmp_path / "httk.csv"
     _write_population(httk)
     assert detect_population_format(httk) == "httk"
+
+
+
+def test_population_format_and_provenance_can_be_separated(tmp_path):
+    path = tmp_path / "fixture.csv"
+    _write_population(path)
+    people = load_population_csv(
+        path,
+        format="httk",
+        source_id="synthetic_fixture",
+    )
+    assert people
+    assert all(person.source_id == "synthetic_fixture" for person in people)
+    assert all(
+        "synthetic_fixture" in person.physiology.source_ids
+        for person in people
+    )
