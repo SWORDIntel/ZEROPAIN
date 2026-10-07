@@ -396,3 +396,53 @@ The model reports:
 This creates a clean analysis target for future EEG/HRV work: a real dataset can be
 asked whether a mixture model or switch-transient model explains observations better
 than a simple mood/arousal-only model.
+
+
+## Belief-network phase sweep
+
+The default model intentionally does **not** force methamphetamine to cause false
+reporting. To find where the cooperative → fragmented → adversarial transition actually
+appears, sweep the starting trust level:
+
+```bash
+python -m research.dissociation.belief_phase_sweep \
+  --trust-levels 0.20 0.30 0.40 0.50 0.60 0.70 0.80 \
+  --steps 240 \
+  --seeds 5 \
+  --output runs/dissociation_belief_phase_sweep.json
+```
+
+For each trust level and perturbation profile it reports:
+
+- final pairwise trust;
+- truth accuracy;
+- withholding rate;
+- false-report rate;
+- probability of any false report;
+- fraction of time classified as adversarial;
+- probability of ending in the adversarial regime.
+
+Profiles include baseline, meth, meth+NMDA, wake disruption, meth+wake disruption and
+meth+NMDA+wake disruption.
+
+The output also estimates the highest starting trust at which false reporting or an
+adversarial regime still appears.
+
+### Direct-effect falsification control
+
+By default:
+
+```text
+direct_meth_misreport_weight = 0
+```
+
+A sensitivity run can explicitly add a direct pathway:
+
+```bash
+python -m research.dissociation.belief_phase_sweep \
+  --direct-meth-misreport-weight 0.20
+```
+
+That is not the preferred model. It is a falsification/control condition: if the
+indirect trust/divergence model cannot reproduce observations but a direct term can,
+that becomes evidence that the current mechanism is incomplete.
