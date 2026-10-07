@@ -78,7 +78,7 @@ class ModelParameters:
     nop_antagonist_control_weight: float = 0.00
 
     # State-transition equation.
-    switch_intercept: float = -2.00
+    switch_intercept: float = -4.20
     switch_vulnerability_weight: float = 1.15
     switch_low_control_weight: float = 2.20
     switch_low_integration_weight: float = 1.75
