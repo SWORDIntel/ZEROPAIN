@@ -81,6 +81,10 @@ def test_transient_model_beats_plain_mixture_when_switch_transients_exist():
     by_name = {fit.name: fit for fit in fits}
 
     assert (
-        by_name["mixture_plus_transient"].test_rmse
+        by_name["mixture_plus_state_derivative"].test_rmse
         < by_name["mixture"].test_rmse
+    )
+    assert (
+        by_name["mixture_plus_state_derivative"].parameters
+        < by_name["mixture_plus_pair_transient"].parameters
     )
