@@ -823,3 +823,26 @@ If mechanism annotations are absent, models that require them are **not run**. T
 prevents "no exposure data" from being silently interpreted as "zero receptor effect."
 
 The default template intentionally contains **no mechanism columns**.
+
+
+### Repeated-seed null-model stability
+
+`longitudinal_null_stability.py` repeats the receptor/context/mixed truth benchmark
+over independent synthetic datasets:
+
+```bash
+python -m research.dissociation.longitudinal_null_stability \
+  --seeds 5 --subjects 5 --sessions 18 \
+  --output runs/dissociation_longitudinal_null_stability.json
+```
+
+It records:
+
+- mechanism-family and context-family win counts;
+- median mechanism gain over the best non-mechanism null;
+- minimum/median penalty after within-subject mechanism-label permutation;
+- context-truth spurious mechanism gain.
+
+The executable exits non-zero when its **synthetic benchmark-health** checks fail.
+Those gates only test whether the benchmark can recover the truth family it generated
+itself. They are not biological significance thresholds.
