@@ -114,25 +114,6 @@ def _chosen_matrix(blocks: np.ndarray, indices: Sequence[int]) -> np.ndarray:
     return blocks[np.asarray(indices, dtype=int)].reshape(-1, blocks.shape[2])
 
 
-def feasible(
-    candidate: MatrixScore,
-    full: MatrixScore,
-    constraints: DesignConstraints,
-) -> bool:
-    return (
-        candidate.numerical_rank == full.numerical_rank == full_parameter_count(full, candidate)
-        and candidate.condition_number <= constraints.max_condition_number
-        and candidate.min_singular_value
-        >= constraints.min_singular_fraction * full.min_singular_value
-    )
-
-
-def full_parameter_count(full: MatrixScore, candidate: MatrixScore) -> int:
-    # Feasibility requires full-column rank, not merely parity with a rank-deficient
-    # reference. The caller enforces reference full rank before optimisation.
-    return full.numerical_rank
-
-
 def _is_feasible(
     candidate: MatrixScore,
     full: MatrixScore,
