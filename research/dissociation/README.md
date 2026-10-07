@@ -871,3 +871,74 @@ distribution and returns an empirical upper-tail probability.
 This remains an association diagnostic. It does not remove time-varying confounding,
 measurement error, reverse causation or selection effects and therefore must not be
 reported as proof of receptor causality.
+
+
+## ECC-like silent result verification
+
+The research runners can now carry a small **verification syndrome** alongside the
+normal audit log, analogous to ECC check bits.
+
+Cheap mode:
+
+```bash
+ZEROPAIN_VERIFY=1 \
+ZEROPAIN_VERIFY_LOG=runs/verification.jsonl \
+python -m research.dissociation.run_belief_network
+```
+
+Nothing extra is printed when checks pass. The normal result JSON is unchanged.
+One compact JSONL audit record is appended.
+
+Strict mode:
+
+```bash
+export ZEROPAIN_VERIFY=1
+export ZEROPAIN_VERIFY_STRICT=1
+```
+
+A non-zero syndrome raises immediately *after* the failed audit record is written.
+
+Full replay mode:
+
+```bash
+export ZEROPAIN_VERIFY_REPLAY=1
+```
+
+For runners with a replay hook, the computation is run a second time from the recorded
+configuration/seed and canonical result hashes are compared. This is deliberately
+separate because it can roughly double runtime.
+
+Current syndrome bits:
+
+| Bit | Meaning |
+|---:|---|
+| `0x01` | canonical serialization failed |
+| `0x02` | NaN/Inf or another non-finite result |
+| `0x04` | semantically bounded probability/accuracy/consistency/trust value escaped `[0,1]` |
+| `0x08` | model-specific cross-field invariant failed |
+| `0x10` | deterministic replay mismatch |
+| `0x20` | independent checker/implementation disagreement |
+| `0x40` | written JSON does not round-trip to the in-memory result digest |
+
+Examples of model-specific relations already checked include completed sync events not
+exceeding expected sync events, false-report/withholding counts not exceeding
+communication opportunities, recovered coefficients staying inside their declared
+search bounds, and model winners actually existing in the scored model table.
+
+Scrub old results:
+
+```bash
+python -m zeropain.verification_scrub \
+  --log runs/verification.jsonl
+```
+
+The scrubber is quiet on success and exits non-zero if a referenced result disappeared,
+became unreadable or no longer hashes to the value originally verified.
+
+**What this proves:** corruption, impossible values, broken internal relations,
+nondeterministic replay and—when supplied—disagreement with an independent
+implementation.
+
+**What it does not prove:** that two identical implementations share no bug, or that a
+scientific mechanism is true. For important calculations, the strongest check bit is
+still `0x20`: compute the same quantity by a genuinely independent path and compare.
