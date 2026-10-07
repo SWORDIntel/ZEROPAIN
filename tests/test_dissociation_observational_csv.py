@@ -11,7 +11,7 @@ from research.dissociation.observational_csv import (
 )
 
 
-def _write_csv(path, *, include_mechanisms=False):
+def _write_csv(path, *, include_mechanisms=False, sessions=8):
     fields = [
         "subject_id", "session_index",
         "observer_switch_count", "switch_observation_checks",
@@ -27,7 +27,7 @@ def _write_csv(path, *, include_mechanisms=False):
 
     rows = []
     for subject in ("A", "B"):
-        for session in range(8):
+        for session in range(sessions):
             row = {
                 "subject_id": subject,
                 "session_index": session,
@@ -86,7 +86,7 @@ def test_models_skip_mechanism_family_when_annotations_absent(tmp_path):
 
 def test_mechanism_models_become_available_only_when_columns_exist(tmp_path):
     path = tmp_path / "annotated.csv"
-    _write_csv(path, include_mechanisms=True)
+    _write_csv(path, include_mechanisms=True, sessions=16)
     rows, report = load_observational_csv(path)
     assert len(report.available_mechanism_features) == 5
     scores = score_observational_rows(rows, test_fraction=0.25)
