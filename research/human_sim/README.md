@@ -269,21 +269,42 @@ The density conversions used by the current reduced httk adapter are explicit
 approximation constants and remain a calibration TODO. A later adapter should ingest
 direct organ volumes where the upstream population export provides them.
 
-### Milestone 3 — multi-ligand receptor competition
+### Milestone 3 — multi-ligand receptor competition — IMPLEMENTED
 
-Current target occupancy is one ligand → one target.
-
-Next:
+HumanSim now supports same-site competitive occupancy across simultaneous ligands:
 
 ```text
-multiple ligands
-    ↓
-competitive occupancy at a shared target
-    ↓
-agonist / partial-agonist / antagonist contributions
-    ↓
-target-specific adaptation
+w_i = (C_i / Kd_i)^n
+occupancy_i = w_i / (1 + Σw)
+unbound receptor = 1 / (1 + Σw)
 ```
+
+Signal is then computed separately from binding:
+
+```text
+Σ occupancy_i × efficacy_i × polarity_i
+    × surface receptor fraction
+    × coupling fraction
+```
+
+Therefore:
+- an antagonist can occupy receptor without producing agonist signal;
+- a partial agonist can bind similarly while producing less signal;
+- multiple ligands compete for the same receptor pool;
+- target adaptation acts on the resulting signal history.
+
+Current limitation: each ligand's PBPK is simulated independently, then combined at
+the receptor layer. This models **PK independence + PD competition**, not metabolic,
+transporter or protein-binding drug-drug interactions.
+
+Synthetic demonstration:
+
+```bash
+python -m research.human_sim.run_multiligand \
+  --output runs/human_sim_multiligand.json
+```
+
+The demonstration uses arbitrary units and a synthetic agonist/antagonist pair.
 
 ### Milestone 4 — signalling
 
