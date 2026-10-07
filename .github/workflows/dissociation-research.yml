@@ -79,6 +79,12 @@ jobs:
             --parameters meth_salience_weight nmda_integration_weight mor_partial_control_weight kor_antagonist_control_weight wake_coordination_weight \
             --output /tmp/dissociation_identifiability.json
 
+          python -m research.dissociation.experimental_design \
+            --subjects 180 --steps 30 --replicates 1 \
+            --max-condition 14 --min-information-fraction 0.15 \
+            --validation-seeds 421 \
+            --output /tmp/dissociation_experimental_design.json
+
           python -m research.dissociation.model_selection_stability \
             --seeds 3 --steps 140 --states 4 \
             --transient-lags 2 --test-every 5 \
