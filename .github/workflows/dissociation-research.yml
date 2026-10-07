@@ -100,6 +100,12 @@ jobs:
             --missing 0.08 \
             --output /tmp/dissociation_longitudinal_nulls.json
 
+          python -m research.dissociation.longitudinal_null_stability \
+            --seeds 3 --subjects 4 --sessions 12 \
+            --micro-population 40 --steps 12 \
+            --missing 0.08 \
+            --output /tmp/dissociation_longitudinal_null_stability.json
+
           python -m research.dissociation.model_selection_stability \
             --seeds 3 --steps 140 --states 4 \
             --transient-lags 2 --test-every 5 \
