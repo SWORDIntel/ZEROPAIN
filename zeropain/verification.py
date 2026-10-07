@@ -124,11 +124,18 @@ def probability_range_check(
     value: Any,
     *,
     field_tokens: Sequence[str] = (
-        "probability", "rate", "accuracy", "consistency", "fraction",
-        "completion", "trust",
+        "probability",
+        "accuracy",
+        "consistency",
+        "trust",
     ),
 ) -> tuple[bool, str]:
-    """Conservative heuristic: only inspect fields whose names imply [0,1]."""
+    """Conservative heuristic: inspect only semantically bounded field names.
+
+    Generic words such as "rate" and "fraction" are intentionally excluded because
+    they may mean sampling_rate_hz, a signed fractional improvement, etc. Runners
+    should add explicit relation checks for additional bounded quantities.
+    """
 
     bad: list[str] = []
 
