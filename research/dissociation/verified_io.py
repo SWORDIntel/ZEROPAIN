@@ -10,6 +10,7 @@ The primary output is never modified to contain verification state.
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
 
@@ -49,11 +50,15 @@ def write_json(
             return bool(result), ""
         return True, ""
 
+    replay_enabled = os.getenv("ZEROPAIN_VERIFY_REPLAY", "").strip().lower() in {
+        "1", "true", "yes", "on",
+    }
+
     verify(
         payload,
         label=label,
         relations=relations,
-        replay=replay,
+        replay=replay if replay_enabled else None,
         independent=file_roundtrip,
         metadata={
             "output_path": str(out),
