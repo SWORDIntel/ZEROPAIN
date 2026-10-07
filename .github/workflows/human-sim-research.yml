@@ -41,6 +41,8 @@ jobs:
           ZEROPAIN_VERIFY: "1"
           ZEROPAIN_VERIFY_STRICT: "1"
           ZEROPAIN_VERIFY_REPLAY: "1"
+          ZEROPAIN_VERIFY_REFERENCE: "1"
+          ZEROPAIN_VERIFY_REFERENCE_NRMSE: "0.08"
           ZEROPAIN_VERIFY_LOG: /tmp/human_sim_verification.jsonl
         run: |
           python -m research.human_sim.run_pbpk_receptor \
