@@ -97,11 +97,11 @@ class StateNetworkParameters:
     initial_trust_sd: float = 0.08
     sync_trust_gain: float = 0.055
     missed_sync_trust_loss: float = 0.045
-    divergence_trust_loss: float = 0.025
-    stress_trust_loss: float = 0.018
+    divergence_trust_loss: float = 0.005
+    stress_trust_loss: float = 0.003
     meth_trust_loss_multiplier: float = 0.55
-    kor_agonist_trust_penalty: float = 0.010
-    kor_antagonist_trust_bonus: float = 0.008
+    kor_agonist_trust_penalty: float = 0.001
+    kor_antagonist_trust_bonus: float = 0.001
 
     # Withholding is an emergent probability from low pairwise trust.
     withholding_threshold: float = 0.50
