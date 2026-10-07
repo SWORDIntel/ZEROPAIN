@@ -23,6 +23,10 @@ from research.human_sim.population import (
     load_population_csv,
     summarize_population,
 )
+from research.human_sim.reference_physiology import (
+    adult_male_reference_composite,
+    audit_physiology_against_reference,
+)
 from research.human_sim.provenance import sources_dict
 from zeropain.verified_io import write_json
 
@@ -68,8 +72,16 @@ def build_payload(args: argparse.Namespace) -> dict:
     mass_error = []
     target_peak_occupancy = {name: [] for name in targets}
     target_mean_signal = {name: [] for name in targets}
+    reference = adult_male_reference_composite()
+    sanity_reports = []
 
     for individual in individuals:
+        sanity_reports.append(
+            audit_physiology_against_reference(
+                individual.physiology,
+                reference=reference,
+            )
+        )
         result = simulate_human_chain(
             individual.physiology,
             disposition,
@@ -109,6 +121,25 @@ def build_payload(args: argparse.Namespace) -> dict:
             "selected_individuals": len(individuals),
         },
         "population_physiology_summary": population_summary.to_dict(),
+        "reference_sanity_audit": {
+            "reference": reference.to_dict(),
+            "broad_screen_only": True,
+            "flagged_individuals": sum(
+                not report.passed_broad_screen for report in sanity_reports
+            ),
+            "total_individuals": len(sanity_reports),
+            "total_flow_ratio": _q([
+                report.total_flow_ratio for report in sanity_reports
+            ]),
+            "example_flags": [
+                {
+                    "individual_id": individuals[index].individual_id,
+                    "flags": list(report.broad_screen_flags),
+                }
+                for index, report in enumerate(sanity_reports)
+                if report.broad_screen_flags
+            ][:10],
+        },
         "model_input": {
             "duration_h": args.duration_h,
             "dt_h": args.dt_h,
@@ -135,6 +166,9 @@ def _relations(payload: dict):
         failures.append("population empty")
     if payload["outcomes"]["mass_balance_error"]["max"] > 1e-8:
         failures.append("population mass-balance residual exceeded 1e-8")
+    audit = payload["reference_sanity_audit"]
+    if audit["total_individuals"] != payload["population_source"]["selected_individuals"]:
+        failures.append("reference sanity audit count mismatch")
     for name, target in payload["outcomes"]["targets"].items():
         for metric in ("peak_occupancy", "mean_signal_magnitude"):
             stats = target[metric]
