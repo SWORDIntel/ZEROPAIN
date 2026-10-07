@@ -608,6 +608,8 @@ python -m research.dissociation.experimental_design \
   --subjects 400 --steps 50 --replicates 2 \
   --max-condition 6 --min-information-fraction 0.35 \
   --validation-seeds 211 311 \
+  --recovery-check --recovery-grid-points 7 --recovery-passes 3 \
+  --max-recovery-inflation 1.5 \
   --output runs/dissociation_experimental_design.json
 ```
 
@@ -626,7 +628,11 @@ Algorithm:
 4. Remove redundant conditions with a feasibility-preserving backward deletion pass.
 5. Run leave-one-out ablation on the **full candidate library** to quantify each
    condition's information loss.
-6. Validate the final chosen subset with **independent random seeds**.
+6. Optionally compare parameter recovery on the selected vs full candidate library,
+   using **identical fitting hyperparameters, independent seeds and held-out tests**.
+   If the reduced design degrades recovery too far, add high-information conditions
+   and re-run recovery. This is a second-stage surrogate search, not global optimisation.
+7. Validate the **final** chosen subset with independent random seeds.
 
 Result JSON records all candidate input vectors, selected conditions, every
 add/remove decision, rank/condition numbers, full-pool ablations and independent-seed
@@ -638,7 +644,9 @@ design.
 minimal set; Jacobian rank is only **local** identifiability at the chosen simulated
 parameters; preserving rank/conditioning does not prove biological validity.
 Independent-seed validation reduces—but does not eliminate—simulation selection bias.
-The chosen set should still be checked with independent-seed parameter recovery.
+The optional recovery check specifically handles this case. Reduced-design recovery
+may be materially worse even when the Jacobian's rank and condition number look good;
+the matched full-design control exposes that failure.
 
 Use `--budget 4` to test whether a strict condition count suffices. Too-small
 budgets are expected to fail explicitly, not trigger silent relaxation.
