@@ -28,6 +28,10 @@ from research.human_sim.reference_physiology import (
     audit_physiology_against_reference,
 )
 from research.human_sim.provenance import sources_dict
+from research.human_sim.population_uncertainty import (
+    bootstrap_outcome_report,
+    correlation_report,
+)
 from zeropain.verified_io import write_json
 
 
@@ -39,6 +43,8 @@ def _parser() -> argparse.ArgumentParser:
     p.add_argument("--duration-h", type=float, default=6.0)
     p.add_argument("--dt-h", type=float, default=0.05)
     p.add_argument("--initial-central-units", type=float, default=1.0)
+    p.add_argument("--bootstrap-resamples", type=int, default=500)
+    p.add_argument("--bootstrap-seed", type=int, default=17)
     p.add_argument("--output", default="runs/human_sim_population.json")
     return p
 
@@ -104,6 +110,18 @@ def build_payload(args: argparse.Namespace) -> dict:
     if selected_format == "httk":
         evidence_ids.append("httk_tissue")
 
+    uncertainty_vectors = {
+        "peak_brain_free_concentration": brain_peak,
+        **{
+            f"{name}.peak_occupancy": target_peak_occupancy[name]
+            for name in targets
+        },
+        **{
+            f"{name}.mean_signal_magnitude": target_mean_signal[name]
+            for name in targets
+        },
+    }
+
     return {
         "schema_version": 1,
         "model": "human_sim_correlated_virtual_population",
@@ -121,6 +139,20 @@ def build_payload(args: argparse.Namespace) -> dict:
             "selected_individuals": len(individuals),
         },
         "population_physiology_summary": population_summary.to_dict(),
+        "population_correlation": correlation_report(individuals),
+        "sampling_uncertainty": {
+            "interpretation": (
+                "Nonparametric bootstrap uncertainty of finite virtual-population "
+                "summary estimates only; not total biological/model uncertainty."
+            ),
+            "resamples": args.bootstrap_resamples,
+            "seed": args.bootstrap_seed,
+            "outcomes": bootstrap_outcome_report(
+                uncertainty_vectors,
+                resamples=args.bootstrap_resamples,
+                seed=args.bootstrap_seed,
+            ),
+        },
         "reference_sanity_audit": {
             "reference": reference.to_dict(),
             "broad_screen_only": True,
@@ -183,6 +215,8 @@ def main() -> int:
         raise ValueError("--limit cannot be negative")
     if args.initial_central_units < 0:
         raise ValueError("--initial-central-units cannot be negative")
+    if args.bootstrap_resamples < 50:
+        raise ValueError("--bootstrap-resamples must be >= 50")
 
     payload = build_payload(args)
     out = write_json(
