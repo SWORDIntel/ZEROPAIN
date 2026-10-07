@@ -36,8 +36,8 @@ FEATURE_NAMES = (
 class ObservationConfig:
     n_states: int = 4
     seed: int = 53
-    state_separation: float = 1.35
-    base_noise_sd: float = 0.18
+    state_separation: float = 0.90
+    base_noise_sd: float = 0.22
     executive_weight: float = 0.72
     switch_transient_amplitude: float = 0.85
     switch_transient_decay: float = 0.45
