@@ -61,6 +61,56 @@ SOURCE_REGISTRY: Mapping[str, EvidenceSource] = {
             "and BMI; generated populations can be exported to CSV."
         ),
     ),
+
+    "icrp89": EvidenceSource(
+        source_id="icrp89",
+        title="ICRP Publication 89: Basic Anatomical and Physiological Data",
+        kind="reference_compendium",
+        url="https://www.icrp.org/publication.asp?id=icrp%20publication%2089",
+        citation="ICRP Publication 89. Ann ICRP. 2002;32(3-4).",
+        notes=(
+            "Reference adult organ masses and tissue densities; adult male brain "
+            "mass 1450 g and brain specific gravity approximately 1.04."
+        ),
+    ),
+    "brown1997_pbpk": EvidenceSource(
+        source_id="brown1997_pbpk",
+        title="Physiological parameter values for physiologically based pharmacokinetic models",
+        kind="journal_review",
+        url="https://pubmed.ncbi.nlm.nih.gov/9249929/",
+        citation=(
+            "Brown RP, Delp MD, Lindstedt SL, Rhomberg LR, Beliles RP. "
+            "Toxicol Ind Health. 1997;13(4):407-484. "
+            "doi:10.1177/074823379701300401"
+        ),
+        notes=(
+            "PBPK physiology review emphasizing physiological variability and "
+            "consistency between cardiac output and regional organ flows."
+        ),
+    ),
+    "atsdr_mann_pbpk": EvidenceSource(
+        source_id="atsdr_mann_pbpk",
+        title="Physiological Data Used in the Mann PBPK Model for Humans",
+        kind="government_reference_table",
+        url="https://www.ncbi.nlm.nih.gov/books/NBK591624/table/ch3.tab15/",
+        citation="ATSDR Toxicological Profile for Arsenic, Table 3-15, 2007.",
+        notes=(
+            "70-kg human reference values including blood volume 5.222 L, "
+            "cardiac output 5.29 L/min, hepatic flow 0.32 L/min, splanchnic "
+            "flow 1.02 L/min, and kidney flow 0.95 L/min."
+        ),
+    ),
+    "lassen1985_cbf": EvidenceSource(
+        source_id="lassen1985_cbf",
+        title="Normal average value of cerebral blood flow in younger adults is 50 ml/100 g/min",
+        kind="journal",
+        url="https://pubmed.ncbi.nlm.nih.gov/4030914/",
+        citation=(
+            "Lassen NA. J Cereb Blood Flow Metab. 1985;5(3):347-349. "
+            "doi:10.1038/jcbfm.1985.48"
+        ),
+        notes="Reference average cerebral blood flow approximately 50 mL/100 g/min.",
+    ),
     "schmitt_partitioning": EvidenceSource(
         source_id="schmitt_partitioning",
         title="General approach for tissue:plasma partition coefficients",
