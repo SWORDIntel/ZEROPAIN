@@ -4,7 +4,8 @@ Candidate models:
 1. null mean-only;
 2. executive-state identity;
 3. co-conscious weighted mixture;
-4. mixture + switch-transition transient basis.
+4. mixture + compact lagged state-derivative transient basis;
+5. mixture + high-dimensional ordered-pair transient basis.
 
 The fitter uses only NumPy least squares. It reports train/test RMSE and R² plus BIC.
 The richer model only "wins" if it improves held-out prediction enough to justify its
@@ -129,6 +130,37 @@ def _transition_basis(
     return basis
 
 
+def _state_derivative_basis(
+    mixture: np.ndarray,
+    *,
+    lags: int = 3,
+) -> np.ndarray:
+    """Compact transient basis from changes in state-mixture occupancy.
+
+    The observation generator creates switch transients roughly along the direction
+    from the previous state signature to the new one. A lagged derivative of the
+    mixture weights captures that structure with O(states * lags) columns instead of
+    O(state_pairs * lags).
+    """
+
+    if lags < 1:
+        raise ValueError("lags must be >= 1")
+
+    delta = np.zeros_like(mixture)
+    if len(mixture) > 1:
+        delta[1:] = mixture[1:] - mixture[:-1]
+
+    blocks = []
+    for lag in range(lags):
+        block = np.zeros_like(delta)
+        if lag == 0:
+            block[:] = delta
+        else:
+            block[lag:] = delta[:-lag]
+        blocks.append(block)
+    return np.concatenate(blocks, axis=1)
+
+
 def build_designs(
     trace: StateNetworkTrace,
     *,
@@ -138,11 +170,16 @@ def build_designs(
 ) -> Dict[str, np.ndarray]:
     mixture = _design_mixture(trace, n_states, executive_weight)
     transient = _transition_basis(trace, n_states, lags=transient_lags)
+    derivative = _state_derivative_basis(mixture, lags=transient_lags)
     return {
         "null": _design_null(trace, n_states, executive_weight),
         "executive_state": _design_executive(trace, n_states, executive_weight),
         "mixture": mixture,
-        "mixture_plus_transient": np.concatenate([mixture, transient], axis=1),
+        "mixture_plus_state_derivative": np.concatenate(
+            [mixture, derivative],
+            axis=1,
+        ),
+        "mixture_plus_pair_transient": np.concatenate([mixture, transient], axis=1),
     }
 
 
