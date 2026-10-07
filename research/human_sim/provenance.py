@@ -122,6 +122,50 @@ SOURCE_REGISTRY: Mapping[str, EvidenceSource] = {
         ),
         notes="Reference average cerebral blood flow approximately 50 mL/100 g/min.",
     ),
+    "loryan2022_kpuu": EvidenceSource(
+        source_id="loryan2022_kpuu",
+        title="Unbound Brain-to-Plasma Partition Coefficient, Kp,uu,brain",
+        kind="journal_review",
+        url="https://pubmed.ncbi.nlm.nih.gov/35411506/",
+        citation=(
+            "Loryan I et al. Pharm Res. 2022;39(7):1321-1341. "
+            "doi:10.1007/s11095-022-03246-6"
+        ),
+        notes=(
+            "Defines Kp,uu,brain as the unbound brain-to-plasma concentration ratio "
+            "and emphasizes unbound exposure as the pharmacologically relevant quantity."
+        ),
+    ),
+    "pang2019_clearance": EvidenceSource(
+        source_id="pang2019_clearance",
+        title="Hepatic clearance concepts and misconceptions",
+        kind="journal_review",
+        url="https://pubmed.ncbi.nlm.nih.gov/31398312/",
+        citation=(
+            "Pang KS et al. Biochem Pharmacol. 2019;168:56-62. "
+            "doi:10.1016/j.bcp.2019.07.025"
+        ),
+        notes=(
+            "Reviews the well-stirred and alternative hepatic-clearance models and "
+            "their assumptions; HumanSim treats well-stirred clearance as a reference "
+            "model rather than silently conflating it with tissue elimination."
+        ),
+    ),
+    "httk_schmitt": EvidenceSource(
+        source_id="httk_schmitt",
+        title="httk Schmitt tissue partition implementation",
+        kind="software_model",
+        url="https://search.r-project.org/CRAN/refmans/httk/html/parameterize_schmitt.html",
+        citation=(
+            "httk implementation of Schmitt 2008 partitioning, modified/calibrated "
+            "by Pearce et al. 2017."
+        ),
+        notes=(
+            "predict_partitioning_schmitt returns tissue-to-unbound-plasma "
+            "partition coefficients; these require multiplication by fu_plasma "
+            "to obtain total tissue:total plasma Kp."
+        ),
+    ),
     "schmitt_partitioning": EvidenceSource(
         source_id="schmitt_partitioning",
         title="General approach for tissue:plasma partition coefficients",
