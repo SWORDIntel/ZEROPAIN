@@ -693,7 +693,15 @@ The benchmark reports each panel's full-library Jacobian rank, rank-preserving
 condition subset (when feasible), condition number, independent-seed validation,
 and blind parameter recovery using only noisy observed channels. Full-vs-reduced
 recovery uses the same sampling and fitter settings; held-out observations include
-a synthetic measurement-noise floor for context.
+a synthetic measurement-noise floor for context. Measurement randomness is **keyed
+by named condition**, so the same scenario receives the same synthetic noise and
+missingness regardless of subset membership or iteration order.
+
+**Formal rank is not recovery quality.** The JSON separately flags whether blind,
+noisy mean parameter recovery error is <=20% and held-out loss is <=1.5x an oracle
+noise floor. These are **arbitrary computational screening thresholds**, not
+clinical effect-size criteria. A panel can retain full Jacobian rank and still
+fail these recovery checks; such a panel must not be described as reliable.
 
 **Important methodological distinction:** the finite-difference Jacobian uses the
 *expected measurement process* with common simulation seeds, not randomly resampled
