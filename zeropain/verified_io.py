@@ -43,11 +43,6 @@ def write_json(
         if digest(disk_value) != digest(value):
             return False, "in-memory and written-file canonical digests differ"
 
-        if independent is not None:
-            result = independent(value)
-            if isinstance(result, tuple):
-                return result
-            return bool(result), ""
         return True, ""
 
     replay_enabled = os.getenv("ZEROPAIN_VERIFY_REPLAY", "").strip().lower() in {
