@@ -81,8 +81,9 @@ jobs:
 
           python -m research.dissociation.experimental_design \
             --subjects 180 --steps 30 --replicates 1 \
-            --max-condition 14 --min-information-fraction 0.15 \
+            --max-condition 6 --min-information-fraction 0.35 \
             --validation-seeds 421 \
+            --recovery-check --recovery-grid-points 5 --recovery-passes 2 \
             --output /tmp/dissociation_experimental_design.json
 
           python -m research.dissociation.model_selection_stability \
