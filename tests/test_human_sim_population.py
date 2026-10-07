@@ -3,7 +3,9 @@ import csv
 import numpy as np
 
 from research.human_sim.population import (
+    detect_population_format,
     load_httkpop_csv,
+    load_pksim_csv,
     summarize_population,
 )
 
@@ -87,3 +89,35 @@ def test_import_rejects_missing_required_columns(tmp_path):
         assert "Blood_mass" in str(exc)
     else:
         raise AssertionError("expected missing-column failure")
+
+
+
+def test_pksim_population_import_uses_direct_organ_volumes(tmp_path):
+    path = tmp_path / "pksim.csv"
+    path.write_text(
+        "#PK-Sim version: synthetic-test\n"
+        '"IndividualId","Gender","Population",'
+        '"Organism|VenousBlood|Volume [l]","Organism|ArterialBlood|Volume [l]",'
+        '"Organism|Brain|Volume [l]","Organism|Brain|Specific blood flow rate [l/min/kg organ]",'
+        '"Organism|Liver|Volume [l]","Organism|Liver|Specific blood flow rate [l/min/kg organ]",'
+        '"Organism|Kidney|Volume [l]","Organism|Kidney|Specific blood flow rate [l/min/kg organ]",'
+        '"Organism|Muscle|Volume [l]","Organism|Muscle|Specific blood flow rate [l/min/kg organ]",'
+        '"Organism|Fat|Volume [l]","Organism|Fat|Specific blood flow rate [l/min/kg organ]"\n'
+        '7,"FEMALE","European_ICRP_2002",3.2,1.4,1.35,0.45,1.55,0.75,0.31,2.6,24.0,0.02,18.0,0.018\n',
+        encoding="utf-8",
+    )
+    assert detect_population_format(path) == "pksim"
+    people = load_pksim_csv(path)
+    assert len(people) == 1
+    person = people[0]
+    assert np.isclose(person.physiology.central_volume_l, 4.6)
+    assert np.isclose(person.physiology.tissue_map["brain"].volume_l, 1.35)
+    assert person.physiology.tissue_map["brain"].blood_flow_l_per_h > 0
+    assert np.isclose(person.physiology.tissue_map["peripheral"].volume_l, 42.0)
+    assert person.source_id == "pksim_population"
+
+
+def test_format_detection_distinguishes_httk_and_pksim(tmp_path):
+    httk = tmp_path / "httk.csv"
+    _write_population(httk)
+    assert detect_population_format(httk) == "httk"
