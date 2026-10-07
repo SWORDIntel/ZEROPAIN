@@ -57,6 +57,11 @@ jobs:
             --initial-central-units 1.0 \
             --output /tmp/human_sim_population.json
 
+          python -m research.human_sim.run_multiligand \
+            --duration-h 3 \
+            --dt-h 0.05 \
+            --output /tmp/human_sim_multiligand.json
+
           python -m zeropain.verification_scrub \
             --log /tmp/human_sim_verification.jsonl \
             --report /tmp/human_sim_verification_scrub.json
