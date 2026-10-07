@@ -14,7 +14,7 @@ import os
 from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
 
-from research.dissociation.verification import digest, verify
+from zeropain.verification import digest, verify
 
 
 Relation = Callable[[Any], tuple[bool, str] | bool]
