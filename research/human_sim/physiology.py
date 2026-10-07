@@ -1,10 +1,7 @@
-"""Physiology parameter objects for the HumanSim research stack.
+"""Physiology-only parameter objects for the HumanSim research stack.
 
-Physiology contains anatomy and blood flow only. Compound-specific tissue partitioning,
-unbound fractions, and clearance live in research.human_sim.disposition.
-
-Volumes use liters and flows use liters/hour. This module does not provide dose
-conversion or administration guidance.
+Physiology contains anatomy/hemodynamics only. Compound-specific tissue partitioning,
+unbound fractions and clearance live in CompoundPKSpec.
 """
 
 from __future__ import annotations
@@ -34,7 +31,6 @@ class Physiology:
     tissues: tuple[TissueSpec, ...]
     label: str = "custom"
     evidence_status: str = "user_supplied_or_synthetic"
-    source_ids: tuple[str, ...] = ()
 
     def validate(self) -> None:
         if self.central_volume_l <= 0:
@@ -53,11 +49,14 @@ class Physiology:
     def tissue_map(self) -> Mapping[str, TissueSpec]:
         return {tissue.name: tissue for tissue in self.tissues}
 
+    @property
+    def total_tissue_flow_l_per_h(self) -> float:
+        return sum(tissue.blood_flow_l_per_h for tissue in self.tissues)
+
     def to_dict(self) -> dict:
         return {
-            **{k: v for k, v in asdict(self).items() if k not in {"tissues", "source_ids"}},
+            **{k: v for k, v in asdict(self).items() if k != "tissues"},
             "tissues": [asdict(tissue) for tissue in self.tissues],
-            "source_ids": list(self.source_ids),
         }
 
 
