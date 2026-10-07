@@ -2,6 +2,7 @@ from dataclasses import replace
 
 import pytest
 
+from research.dissociation.factorial import estimate_effects, generate_design
 from research.dissociation.model import (
     MechanismInput,
     ModelParameters,
@@ -70,7 +71,6 @@ def test_default_mor_partial_hypothesis_is_stabilizing_but_not_hardcoded():
     default_mor = simulate(mor_input, config=FAST)
     assert default_mor.mean_switch_probability < default_meth.mean_switch_probability
 
-    # Reverse the key coefficient: the conclusion should be able to fail.
     reversed_params = replace(
         ModelParameters(),
         mor_partial_control_weight=-0.50,
@@ -96,15 +96,12 @@ def test_nop_direction_is_not_forced():
         simulate(nop, config=FAST, params=negative).mean_switch_probability
         > simulate(meth, config=FAST, params=negative).mean_switch_probability
     )
-\n\nfrom research.dissociation.factorial import estimate_effects, generate_design
 
 
 def test_factorial_design_size_and_interaction_math():
     design = generate_design(("meth", "nmda_antagonism"), high=0.5)
     assert len(design) == 4
 
-    # Synthetic algebra check independent of the pharmacology model:
-    # y = 1*meth + 2*nmda + 3*meth*nmda
     records = []
     for indicators, _ in design:
         m = indicators["meth"]
