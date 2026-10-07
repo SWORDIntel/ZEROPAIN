@@ -35,6 +35,10 @@ jobs:
           python -m pytest -q tests/test_dissociation_*.py
 
       - name: Smoke-run research simulators
+        env:
+          ZEROPAIN_VERIFY: "1"
+          ZEROPAIN_VERIFY_STRICT: "1"
+          ZEROPAIN_VERIFY_LOG: /tmp/dissociation_verification.jsonl
         run: |
           python -m research.dissociation.experiments \
             --subjects 1000 --steps 80 \
@@ -135,7 +139,7 @@ jobs:
             --states 4 --steps 80 \
             --output /tmp/dissociation_verified_observation.json
 
-          python -m research.dissociation.verification_scrub \
+          python -m zeropain.verification_scrub \
             --log /tmp/dissociation_verification.jsonl \
             --report /tmp/dissociation_verification_scrub.json
 
