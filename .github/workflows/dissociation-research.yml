@@ -74,6 +74,16 @@ jobs:
             --transient-lags 3 --test-every 5 \
             --output /tmp/dissociation_model_comparison.json
 
+          python -m research.dissociation.identifiability \
+            --subjects 250 --steps 40 --replicates 2 \
+            --parameters meth_salience_weight nmda_integration_weight mor_partial_control_weight kor_antagonist_control_weight wake_coordination_weight \
+            --output /tmp/dissociation_identifiability.json
+
+          python -m research.dissociation.model_selection_stability \
+            --seeds 3 --steps 140 --states 4 \
+            --transient-lags 2 --test-every 5 \
+            --output /tmp/dissociation_model_selection_stability.json
+
           python -m research.dissociation.run_observation_model \
             --states 4 --steps 120 \
             --output /tmp/dissociation_observation_model.json
