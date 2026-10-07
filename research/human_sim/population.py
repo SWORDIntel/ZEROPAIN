@@ -24,6 +24,25 @@ HTTK_MASS_FLOW_MAP = {
     "kidney": ("Kidneys_mass", "Kidneys_flow"),
 }
 
+PKSIM_EXPLICIT_TISSUES = {
+    "brain": "Brain",
+    "liver": "Liver",
+    "kidney": "Kidney",
+}
+PKSIM_PERIPHERAL_TISSUES = (
+    "Bone",
+    "Fat",
+    "Gonads",
+    "Heart",
+    "Muscle",
+    "Pancreas",
+    "Skin",
+    "Spleen",
+    "Stomach",
+    "SmallIntestine",
+    "LargeIntestine",
+)
+
 DEFAULT_TISSUE_DENSITY_KG_PER_L = {
     "brain": 1.04,
     "liver": 1.05,
@@ -161,15 +180,168 @@ def load_httkpop_csv(
     *,
     config: PopulationImportConfig = PopulationImportConfig(),
 ) -> list[VirtualIndividual]:
-    path = Path(path)
-    with path.open("r", newline="", encoding="utf-8") as handle:
-        rows = list(csv.DictReader(handle))
-    if not rows:
-        raise ValueError("population CSV contains no rows")
+    rows = _read_csv_rows(path)
     return [
         from_httkpop_row(row, index=index, config=config)
         for index, row in enumerate(rows)
     ]
+
+
+
+def _pksim_column(row: Mapping[str, str], path: str, unit: str) -> str:
+    candidates = (f"{path} [{unit}]", path)
+    for candidate in candidates:
+        if candidate in row and str(row[candidate]).strip() != "":
+            return candidate
+    raise ValueError(f"missing required PK-Sim column {path}")
+
+
+def _pksim_volume(row: Mapping[str, str], organ: str) -> float:
+    return _number(row, _pksim_column(row, f"Organism|{organ}|Volume", "l"))
+
+
+def _pksim_specific_flow(row: Mapping[str, str], organ: str) -> float:
+    return _number(
+        row,
+        _pksim_column(
+            row,
+            f"Organism|{organ}|Specific blood flow rate",
+            "l/min/kg organ",
+        ),
+    )
+
+
+def _pksim_total_flow_l_per_h(
+    row: Mapping[str, str],
+    organ: str,
+    density_kg_per_l: float,
+) -> float:
+    volume = _pksim_volume(row, organ)
+    specific = _pksim_specific_flow(row, organ)
+    return specific * volume * density_kg_per_l * 60.0
+
+
+def from_pksim_row(
+    row: Mapping[str, str],
+    *,
+    index: int,
+    config: PopulationImportConfig = PopulationImportConfig(source_id="pksim_population"),
+) -> VirtualIndividual:
+    """Convert a PK-Sim population-export row to the reduced HumanSim body.
+
+    PK-Sim provides organ volumes directly. Blood flow is exported as a specific
+    flow rate (L/min/kg organ), so total organ flow requires an explicit tissue-density
+    conversion. Systemic tissues not represented explicitly are lumped into peripheral.
+
+    Lung is intentionally excluded from the parallel peripheral lump because pulmonary
+    flow is not a parallel systemic organ flow in this reduced topology.
+    """
+
+    densities = config.densities()
+    venous = _number(row, _pksim_column(row, "Organism|VenousBlood|Volume", "l"))
+    arterial = _number(row, _pksim_column(row, "Organism|ArterialBlood|Volume", "l"))
+    central_volume = venous + arterial
+
+    tissues = []
+    for name, organ in PKSIM_EXPLICIT_TISSUES.items():
+        volume = _pksim_volume(row, organ)
+        density = densities.get(name, 1.0)
+        flow = _pksim_total_flow_l_per_h(row, organ, density)
+        tissues.append(TissueSpec(name, volume, flow))
+
+    peripheral_volume = 0.0
+    peripheral_flow = 0.0
+    for organ in PKSIM_PERIPHERAL_TISSUES:
+        try:
+            volume = _pksim_volume(row, organ)
+            flow = _pksim_total_flow_l_per_h(row, organ, 1.0)
+        except ValueError:
+            continue
+        peripheral_volume += volume
+        peripheral_flow += flow
+
+    if peripheral_volume <= 0:
+        raise ValueError("PK-Sim row contains no usable peripheral tissue volumes")
+    tissues.append(TissueSpec("peripheral", peripheral_volume, peripheral_flow))
+
+    physiology = Physiology(
+        central_volume_l=central_volume,
+        tissues=tuple(tissues),
+        label=f"pksim:{row.get('IndividualId', index)}",
+        evidence_status="source_backed_virtual_individual",
+        source_ids=(config.source_id,),
+    )
+    physiology.validate()
+
+    metadata = {}
+    for key in ("IndividualId", "Gender", "Population", "Population Name"):
+        if key in row and str(row[key]).strip() != "":
+            metadata[key] = str(row[key])
+    for path in ("Organism|Age", "Organism|Weight", "Organism|Hematocrit"):
+        for key in row:
+            if key == path or key.startswith(path + " ["):
+                if str(row[key]).strip() != "":
+                    metadata[path] = float(row[key])
+                break
+
+    return VirtualIndividual(
+        individual_id=str(row.get("IndividualId") or f"row-{index}"),
+        physiology=physiology,
+        metadata=metadata,
+        source_id=config.source_id,
+        transforms=(
+            "VenousBlood volume + ArterialBlood volume -> central_volume_l",
+            "PK-Sim organ Volume -> tissue volume directly",
+            "Specific blood flow * organ volume * density * 60 -> L/h",
+            "Selected systemic tissue volumes/flows -> peripheral lump",
+            "Pulmonary compartment excluded from parallel systemic lump",
+        ),
+    )
+
+
+def _read_csv_rows(path: str | Path) -> list[dict[str, str]]:
+    path = Path(path)
+    with path.open("r", newline="", encoding="utf-8-sig") as handle:
+        lines = [line for line in handle if not line.lstrip().startswith("#")]
+    rows = list(csv.DictReader(lines))
+    if not rows:
+        raise ValueError("population CSV contains no rows")
+    return rows
+
+
+def load_pksim_csv(
+    path: str | Path,
+    *,
+    config: PopulationImportConfig = PopulationImportConfig(source_id="pksim_population"),
+) -> list[VirtualIndividual]:
+    rows = _read_csv_rows(path)
+    return [
+        from_pksim_row(row, index=index, config=config)
+        for index, row in enumerate(rows)
+    ]
+
+
+def detect_population_format(path: str | Path) -> str:
+    rows = _read_csv_rows(path)
+    columns = set(rows[0])
+    if "Blood_mass" in columns and "Brain_mass" in columns:
+        return "httk"
+    if any(col.startswith("Organism|Brain|Volume") for col in columns):
+        return "pksim"
+    raise ValueError("could not detect population CSV format")
+
+
+def load_population_csv(
+    path: str | Path,
+    *,
+    format: str = "auto",
+) -> list[VirtualIndividual]:
+    selected = detect_population_format(path) if format == "auto" else format.lower()
+    if selected == "httk":
+        return load_httkpop_csv(path)
+    if selected == "pksim":
+        return load_pksim_csv(path)
+    raise ValueError("format must be one of: auto, httk, pksim")
 
 
 def summarize_population(individuals: Iterable[VirtualIndividual]) -> PopulationSummary:
