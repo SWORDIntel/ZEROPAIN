@@ -17,6 +17,8 @@ from typing import Dict, Iterable, Sequence
 
 import numpy as np
 
+from zeropain.verified_io import write_json
+
 from research.dissociation.model import (
     MechanismInput,
     ModelParameters,
@@ -382,9 +384,23 @@ def main() -> int:
         "diagnostics": diagnostics,
     }
 
-    out = Path(args.output)
-    out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    def recovery_relation(value):
+        failures = []
+        for name, estimate in value["estimated_parameters"].items():
+            low, high = value["bounds"][name]
+            if not low <= estimate <= high:
+                failures.append(f"{name}={estimate} outside [{low}, {high}]")
+        if len(value["recovery"]) != len(value["estimated_parameters"]):
+            failures.append("recovery row count does not match fitted parameter count")
+        return (not failures, "; ".join(failures))
+
+    out = write_json(
+        args.output,
+        payload,
+        label="dissociation.parameter_recovery",
+        relations=[recovery_relation],
+        metadata={"seed": args.seed, "subjects": args.subjects, "steps": args.steps},
+    )
 
     print(f"Wrote recovery benchmark to {out}")
     for item in recovered:
