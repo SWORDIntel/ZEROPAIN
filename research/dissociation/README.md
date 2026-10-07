@@ -596,3 +596,53 @@ mixture + high-dimensional pair-specific transient
 The pair-specific model is deliberately retained as an overfitting control. If it wins
 training fit but repeatedly loses held-out prediction/BIC, that is useful evidence
 against paying for that complexity.
+
+
+## Experimental-design optimisation
+
+The first design optimiser answers: **which dimensionless model conditions are worth
+simulating/observing, and which ones are redundant?**
+
+```bash
+python -m research.dissociation.experimental_design \
+  --subjects 400 --steps 50 --replicates 2 \
+  --max-condition 6 --min-information-fraction 0.35 \
+  --validation-seeds 211 311 \
+  --output runs/dissociation_experimental_design.json
+```
+
+The fixed candidate library includes baseline, single-factor meth/NMDA/MOR-partial/
+KOR-antagonist/wake conditions, and selected combinations. **These are unitless model
+perturbations, not proposed human drug challenges.**
+
+Algorithm:
+
+1. Compute one finite-difference Jacobian across the **entire** condition library.
+   Preserve the same metric normalization when examining every subset.
+2. Score the full reference design for rank, singular values, condition number and
+   regularised log-det information.
+3. Use rank-first greedy forward selection to meet full rank, conditioning and
+   minimum singular-value retention requirements.
+4. Remove redundant conditions with a feasibility-preserving backward deletion pass.
+5. Run leave-one-out ablation on the **full candidate library** to quantify each
+   condition's information loss.
+6. Validate the final chosen subset with **independent random seeds**.
+
+Result JSON records all candidate input vectors, selected conditions, every
+add/remove decision, rank/condition numbers, full-pool ablations and independent-seed
+validation. If the library is rank deficient or the budget makes the constraints
+impossible, the tool **reports infeasibility**; it does not fabricate a successful
+design.
+
+**Important limitations:** greedy selection is not guaranteed to find a mathematically
+minimal set; Jacobian rank is only **local** identifiability at the chosen simulated
+parameters; preserving rank/conditioning does not prove biological validity.
+Independent-seed validation reduces—but does not eliminate—simulation selection bias.
+The chosen set should still be checked with independent-seed parameter recovery.
+
+Use `--budget 4` to test whether a strict condition count suffices. Too-small
+budgets are expected to fail explicitly, not trigger silent relaxation.
+
+The project remains a computational research harness. The optimiser must never be
+reinterpreted as a protocol for administering methamphetamine, opioids or NMDA agents
+to people.
