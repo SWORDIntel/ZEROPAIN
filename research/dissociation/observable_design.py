@@ -244,6 +244,31 @@ def recover_from_observations(
     }
 
 
+def recovery_quality(
+    recovery: dict | None,
+    *,
+    max_mean_error: float = 0.20,
+    max_noise_adjusted_holdout: float = 1.5,
+) -> dict:
+    """Distinguish formal rank from useful noisy coefficient recovery.
+
+    Thresholds are explicitly synthetic design gates, not clinical standards.
+    """
+    if recovery is None or recovery.get("status") != "fit":
+        return {"adequate": False, "reason": "no fitted observations"}
+    errors_ok = recovery["mean_parameter_relative_error"] <= max_mean_error
+    floor = max(recovery["heldout_oracle_noise_floor"], 0.1)
+    holdout_ok = recovery["heldout_loss"] <= max_noise_adjusted_holdout * floor
+    return {
+        "adequate": bool(errors_ok and holdout_ok),
+        "error_threshold": max_mean_error,
+        "holdout_inflation_threshold": max_noise_adjusted_holdout,
+        "relative_to_oracle": recovery["heldout_loss"] / floor,
+        "mean_error_passed": bool(errors_ok),
+        "heldout_passed": bool(holdout_ok),
+    }
+
+
 def run_observable_design(
     *,
     population: PopulationConfig,
@@ -327,6 +352,8 @@ def run_observable_design(
             ),
             "reduced_recovery": fit,
             "full_recovery": full_fit,
+            "reduced_recovery_quality": recovery_quality(fit),
+            "full_recovery_quality": recovery_quality(full_fit),
         }
     return {
         "schema_version": 1,
@@ -394,7 +421,9 @@ def main() -> int:
                   f"full_recovery={f['mean_parameter_relative_error']:.3f} "
                   f"reduced_holdout={d['heldout_loss']:.3f} "
                   f"full_holdout={f['heldout_loss']:.3f} "
-                  f"oracle_noise_floor={d['heldout_oracle_noise_floor']:.3f}")
+                  f"oracle_noise_floor={d['heldout_oracle_noise_floor']:.3f} "
+                  f"reduced_adequate={record['reduced_recovery_quality']['adequate']} "
+                  f"full_adequate={record['full_recovery_quality']['adequate']}")
     return 0
 
 
