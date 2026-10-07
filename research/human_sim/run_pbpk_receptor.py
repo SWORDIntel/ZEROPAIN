@@ -7,10 +7,13 @@ no mg/kg conversion, clinical dosing presets, or administration recommendations.
 from __future__ import annotations
 
 import argparse
+import os
 from dataclasses import asdict
 
 from research.human_sim.disposition import synthetic_reference_disposition
 from research.human_sim.engine import simulate_human_chain, synthetic_target_panel
+from research.human_sim.pbpk import simulate_pbpk
+from research.human_sim.pbpk_reference import compare_to_reference, simulate_pbpk_reference
 from research.human_sim.physiology import synthetic_reference_physiology
 from zeropain.verified_io import write_json
 
@@ -83,6 +86,48 @@ def _relations(payload: dict):
     return (not failures, "; ".join(failures[:8]))
 
 
+def _reference_checker(args: argparse.Namespace):
+    enabled = os.getenv("ZEROPAIN_VERIFY_REFERENCE", "").strip().lower() in {
+        "1", "true", "yes", "on",
+    }
+    if not enabled:
+        return None
+
+    tolerance = float(os.getenv("ZEROPAIN_VERIFY_REFERENCE_NRMSE", "0.08"))
+    if tolerance <= 0:
+        raise ValueError("ZEROPAIN_VERIFY_REFERENCE_NRMSE must be positive")
+
+    def check(_payload):
+        physiology = synthetic_reference_physiology()
+        disposition = synthetic_reference_disposition()
+        primary = simulate_pbpk(
+            physiology,
+            disposition,
+            duration_h=args.duration_h,
+            dt_h=args.dt_h,
+            initial_central_amount=args.initial_central_units,
+        )
+        reference = simulate_pbpk_reference(
+            physiology,
+            disposition,
+            duration_h=args.duration_h,
+            output_dt_h=args.dt_h,
+            substeps=20,
+            initial_central_amount=args.initial_central_units,
+        )
+        comparison = compare_to_reference(primary, reference)
+        passed = comparison.max_metric <= tolerance
+        return (
+            passed,
+            (
+                f"PBPK independent RK4 max_nrmse={comparison.max_metric:.6f}; "
+                f"threshold={tolerance:.6f}; metrics={comparison.to_dict()}"
+            ),
+        )
+
+    return check
+
+
 def main() -> int:
     args = _parser().parse_args()
     if args.initial_central_units < 0:
@@ -95,6 +140,7 @@ def main() -> int:
         label="human_sim.pbpk_receptor",
         relations=[_relations],
         replay=lambda: build_payload(args),
+        independent=_reference_checker(args),
         metadata={
             "duration_h": args.duration_h,
             "dt_h": args.dt_h,
