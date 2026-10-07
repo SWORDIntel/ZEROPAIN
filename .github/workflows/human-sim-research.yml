@@ -50,6 +50,13 @@ jobs:
             --trace \
             --output /tmp/human_sim_pbpk_receptor.json
 
+          python -m research.human_sim.run_population \
+            research/human_sim/examples/httkpop_synthetic_fixture.csv \
+            --duration-h 3 \
+            --dt-h 0.05 \
+            --initial-central-units 1.0 \
+            --output /tmp/human_sim_population.json
+
           python -m zeropain.verification_scrub \
             --log /tmp/human_sim_verification.jsonl \
             --report /tmp/human_sim_verification_scrub.json
