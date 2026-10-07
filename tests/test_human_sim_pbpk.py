@@ -5,7 +5,7 @@ from research.human_sim.disposition import (
     CompoundDisposition,
     synthetic_reference_disposition,
 )
-from research.human_sim.compound_pk import synthetic_compound_pk
+from research.human_sim.disposition import synthetic_reference_disposition
 from research.human_sim.pbpk import _exchange_pair, simulate_pbpk
 from research.human_sim.physiology import (
     Physiology,
@@ -26,7 +26,7 @@ def test_pbpk_conserves_input_plus_elimination():
     disposition = synthetic_reference_disposition()
     trace = simulate_pbpk(
         physiology,
-        synthetic_compound_pk(),
+        synthetic_reference_disposition(),
         disposition,
         duration_h=8.0,
         dt_h=0.02,
@@ -44,7 +44,7 @@ def test_pbpk_conserves_input_plus_elimination():
 def test_zero_initial_and_zero_input_stays_zero():
     trace = simulate_pbpk(
         synthetic_reference_physiology(),
-        synthetic_compound_pk(),
+        synthetic_reference_disposition(),
         synthetic_reference_disposition(),
         duration_h=2.0,
         dt_h=0.1,
@@ -58,7 +58,7 @@ def test_invalid_negative_input_is_rejected():
     with pytest.raises(ValueError, match="negative"):
         simulate_pbpk(
             synthetic_reference_physiology(),
-            synthetic_compound_pk(),
+            synthetic_reference_disposition(),
             synthetic_reference_disposition(),
             duration_h=1.0,
             dt_h=0.1,
@@ -97,10 +97,10 @@ def test_same_physiology_can_be_reused_for_different_compound_partitioning():
 
     low = simulate_pbpk(
         physiology,
-        synthetic_compound_pk(), low_brain, duration_h=2.0, dt_h=0.02, initial_central_amount=1.0
+        synthetic_reference_disposition(), low_brain, duration_h=2.0, dt_h=0.02, initial_central_amount=1.0
     )
     high = simulate_pbpk(
         physiology,
-        synthetic_compound_pk(), high_brain, duration_h=2.0, dt_h=0.02, initial_central_amount=1.0
+        synthetic_reference_disposition(), high_brain, duration_h=2.0, dt_h=0.02, initial_central_amount=1.0
     )
     assert high.brain_total_concentration.max() > low.brain_total_concentration.max()
