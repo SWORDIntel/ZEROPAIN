@@ -187,3 +187,43 @@ Does wake-anchor disruption amplify meth independently of NMDA integration?
 
 Interaction terms are model outputs, not evidence of biological synergy until the model
 is fitted to real observations.
+
+
+## Discrete identity-state graph
+
+The second layer explicitly represents multiple states rather than reducing the system
+to one switching hazard:
+
+```bash
+python -m research.dissociation.run_state_graph \
+  --states 4 \
+  --steps 480 \
+  --sync-interval 96 \
+  --output runs/dissociation_state_graph.json
+```
+
+Each synthetic state has:
+
+- a current energy/fatigue level;
+- a state-specific executive-access bias;
+- time spent in executive control;
+- event-memory accessibility.
+
+The system models:
+
+- executive hand-off as the current state fatigues;
+- recovery of non-executive states;
+- meth-associated increase in switch pressure and fatigue;
+- NMDA-associated reduction in information permeability;
+- MOR/KOR/NOP hypothesis coefficients;
+- gradual cross-state information diffusion;
+- a periodic waking/synchronization event;
+- failure of that event independently from the direct meth perturbation.
+
+Outputs include state occupancy entropy, low-energy hand-offs, memory divergence,
+synchronization completion and unique states taking executive control.
+
+This is still a toy state graph, **not a claim that DID literally implements this
+algorithm**. Its purpose is to turn observations such as "another state can take over
+when one is exhausted" and "missed internal meetings preceded information divergence"
+into variables that can be tested and falsified.
