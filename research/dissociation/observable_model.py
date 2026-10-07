@@ -117,18 +117,27 @@ def expected_observables(
     }
 
 
+def _resolve_channels(panel: str | Sequence[str]) -> tuple[str, ...]:
+    if isinstance(panel, str):
+        if panel not in PANELS:
+            raise ValueError(f"invalid measurement panel: {panel}")
+        return PANELS[panel]
+    channels = tuple(panel)
+    if not channels or any(name not in ALL_CHANNELS for name in channels):
+        raise ValueError(f"invalid measurement panel: {panel}")
+    return channels
+
+
 def select_channels(
     measurements: Mapping[str, float],
     panel: str | Sequence[str],
 ) -> np.ndarray:
-    channels = PANELS[panel] if isinstance(panel, str) else tuple(panel)
-    if not channels or any(name not in ALL_CHANNELS for name in channels):
-        raise ValueError(f"invalid measurement panel: {panel}")
+    channels = _resolve_channels(panel)
     return np.asarray([measurements[name] for name in channels], dtype=float)
 
 
 def uncertainty_for(panel: str | Sequence[str]) -> np.ndarray:
-    channels = PANELS[panel] if isinstance(panel, str) else tuple(panel)
+    channels = _resolve_channels(panel)
     return np.asarray([UNCERTAINTY[name] for name in channels], dtype=float)
 
 
