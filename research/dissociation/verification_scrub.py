@@ -16,7 +16,7 @@ import argparse
 import json
 from pathlib import Path
 
-from research.dissociation.verification import digest
+from zeropain.verification import digest
 
 
 def scrub(log_path: str | Path) -> dict:
