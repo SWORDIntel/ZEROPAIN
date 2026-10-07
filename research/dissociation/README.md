@@ -354,3 +354,45 @@ meth/NMDA perturbation
 
 That distinction is central to making the observation falsifiable rather than merely
 encoding it into the answer.
+
+
+## Synthetic physiology observation layer
+
+The fifth layer is an **observation model**, not another causal model. It converts the
+latent state trace into synthetic standardized physiological features:
+
+- autonomic-rate-like feature;
+- autonomic-variability-like feature;
+- synthetic EEG delta/theta/alpha/beta/gamma features.
+
+Run:
+
+```bash
+python -m research.dissociation.run_observation_model \
+  --states 4 \
+  --steps 480 \
+  --output runs/dissociation_observation_model.json
+```
+
+The features are arbitrary z-like units, not bpm, Hz power, or clinical EEG values.
+
+It is designed to test four specific observations:
+
+1. **state-specific clusters** can be stable enough to classify;
+2. **co-conscious/blended states** appear as weighted mixtures of state signatures;
+3. **switches can produce short transients** superimposed on the new state;
+4. common perturbations/noise can reduce classification confidence without erasing
+   the underlying state structure.
+
+The model reports:
+
+- nearest-signature classification accuracy on pure-state steps;
+- between-state signature separation;
+- within-state variance;
+- blend reconstruction error;
+- mean switch-transient residual;
+- nonswitch residual.
+
+This creates a clean analysis target for future EEG/HRV work: a real dataset can be
+asked whether a mixture model or switch-transient model explains observations better
+than a simple mood/arousal-only model.
