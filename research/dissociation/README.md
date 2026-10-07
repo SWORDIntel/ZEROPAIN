@@ -654,3 +654,56 @@ budgets are expected to fail explicitly, not trigger silent relaxation.
 The project remains a computational research harness. The optimiser must never be
 reinterpreted as a protocol for administering methamphetamine, opioids or NMDA agents
 to people.
+
+
+## Observable-only identification benchmark
+
+The previous Jacobian/condition-selection benchmarks had a significant modelling
+advantage: they directly read hidden simulator metrics for integration, internal
+coordination and executive control. Real observers cannot read those latents.
+
+The new `observable_model.py` puts a **measurement boundary** between the latent
+scalar state-gating simulator and the parameter fitter. The measurement adapter
+generates deliberately imperfect *synthetic readouts*:
+
+- **observer_switch_rate** — switches detected by an imperfect observer, including
+  misses and false-positive reports;
+- **paired_recall_success** — noisy finite-trial cross-state information-continuity test;
+- **morning_plan_agreement** — finite-trial reported agreement on a shared plan;
+- **wearable_arousal_index** — synthetic autonomic-like summary with measurement noise;
+- **eeg_connectivity_index** — synthetic EEG-like connectivity proxy with measurement
+  noise; **not derived from a real EEG signal and not clinically validated**.
+
+The observer can miss observations. Unobserved entries are `NaN`, not zero or an
+imputed success. All readouts intentionally mix multiple latent mechanisms rather
+than revealing the true internal scalar values.
+
+`observable_design.py` compares four measurement panels using the same nineteen
+**dimensionless simulation conditions**:
+
+```bash
+python -m research.dissociation.observable_design \
+  --subjects 180 --steps 30 --replicates 2 \
+  --panels switch_only observer_only observer_wearable multimodal \
+  --missing 0.10 --validation-seeds 711 \
+  --output runs/dissociation_observable_design.json
+```
+
+The benchmark reports each panel's full-library Jacobian rank, rank-preserving
+condition subset (when feasible), condition number, independent-seed validation,
+and blind parameter recovery using only noisy observed channels. Full-vs-reduced
+recovery uses the same sampling and fitter settings; held-out observations include
+a synthetic measurement-noise floor for context.
+
+**Important methodological distinction:** the finite-difference Jacobian uses the
+*expected measurement process* with common simulation seeds, not randomly resampled
+noisy observations. Otherwise noise alone can create a misleading, apparently
+full-rank Jacobian. Actual recovery separately faces finite observation trials,
+measurement noise, independent simulation seeds and missing entries.
+
+Do **not** interpret a successful synthetic rank test as evidence that any opioid,
+NMDA or catecholamine mechanism actually controls DID switching. The wearable/EEG
+channels here are intentionally fabricated proxy readouts, not established biomarkers.
+The next step requires real, consented longitudinal observational data and testing
+an alternative model without these hypothesised receptor mechanisms. There is no
+basis for using these candidate conditions as human drug-challenge protocols.
