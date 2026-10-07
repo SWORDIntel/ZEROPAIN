@@ -120,11 +120,32 @@ jobs:
             --states 4 --steps 120 \
             --output /tmp/dissociation_observation_model.json
 
+      - name: ECC-like shadow verification
+        env:
+          ZEROPAIN_VERIFY: "1"
+          ZEROPAIN_VERIFY_REPLAY: "1"
+          ZEROPAIN_VERIFY_STRICT: "1"
+          ZEROPAIN_VERIFY_LOG: /tmp/dissociation_verification.jsonl
+        run: |
+          python -m research.dissociation.run_belief_network \
+            --states 4 --steps 80 --sync-interval 20 \
+            --output /tmp/dissociation_verified_belief.json
+
+          python -m research.dissociation.run_observation_model \
+            --states 4 --steps 80 \
+            --output /tmp/dissociation_verified_observation.json
+
+          python -m research.dissociation.verification_scrub \
+            --log /tmp/dissociation_verification.jsonl \
+            --report /tmp/dissociation_verification_scrub.json
+
       - name: Upload synthetic research diagnostics
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: dissociation-simulation-audits
-          path: /tmp/dissociation_*.json
+          path: |
+            /tmp/dissociation_*.json
+            /tmp/dissociation_verification.jsonl
           if-no-files-found: ignore
           retention-days: 14
