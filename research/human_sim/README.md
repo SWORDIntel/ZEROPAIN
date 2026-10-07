@@ -102,9 +102,14 @@ for that timestep. This gives:
 - explicit accumulation of eliminated amount;
 - a measurable whole-system mass-balance residual.
 
-The current sequential operator split is intentionally simple. A future numerical
-comparison should test symmetric splitting / matrix-exponential integration before
-claiming high-fidelity short-timescale kinetics.
+The production kernel now uses a symmetric forward/reverse half-sweep around the
+clearance operator to reduce tissue-order bias while preserving positivity and exact
+pairwise conservation.
+
+An independent RK4 reference integrator in `pbpk_reference.py` does not reuse the
+analytical pairwise update. In strict verification mode, the production and RK4 traces
+are compared by normalized RMSE. This is an implementation-consistency check, not
+biological validation.
 
 ## Receptor layer
 
@@ -175,7 +180,7 @@ This is deliberate: architecture first, then sourced calibration.
 
 ## Next milestones
 
-### Milestone 2 — source-backed virtual physiology — IN PROGRESS
+### Milestone 2 — source-backed virtual physiology — IMPLEMENTED FOUNDATION
 
 HumanSim now supports importing **correlated virtual individuals** from an
 `httk::httkpop_generate()` CSV instead of inventing independent Gaussian organ
@@ -264,6 +269,28 @@ Current registry entries include:
 
 The committed `examples/httkpop_synthetic_fixture.csv` exists **only for CI** and is
 not a real httk export.
+
+HumanSim also includes `reference_physiology.py`, a reduced literature-reference
+composite used only for sanity auditing imported populations. It combines:
+
+- ICRP Publication 89 adult reference organ masses/densities;
+- the Mann/ATSDR human PBPK table for blood volume, cardiac output, liver and kidney flow;
+- Lassen's approximately 50 mL/100 g/min young-adult cerebral blood-flow reference;
+- Brown et al.'s PBPK physiology review for consistency/provenance context.
+
+Derived values and reduction assumptions are labelled explicitly. In particular, the
+lumped peripheral compartment and broad 0.5–1.5 reference-ratio screen are modelling
+checks, **not** clinical normal ranges.
+
+`run_population.py` now reports:
+- reference ratios for imported physiology;
+- total-flow/cardio-output consistency;
+- the number of broad-screen outliers;
+- example outlier flags;
+- without modifying or rejecting the imported individuals.
+
+This preserves the upstream httk/PK-Sim correlations rather than forcing every virtual
+person back toward a reference mean.
 
 The density conversions used by the current reduced httk adapter are explicit
 approximation constants and remain a calibration TODO. A later adapter should ingest
