@@ -363,29 +363,34 @@ def main() -> int:
         if plan["status"] == "feasible" else []
     )
     recovery_audit = None
+    reference_recovery = None
     if plan["status"] == "feasible" and args.recovery_check:
-        # Uses the selected design only, with independent target/fitter seeds;
-        # held-out combination conditions remain out of the fit.
+        # Compare selected and full designs with *identical* optimiser resolution,
+        # sample sizes, seeds, and held-out conditions. Otherwise a reduction in
+        # parameter accuracy might simply be the result of a coarser grid.
         selected_conditions = {name: candidates[name] for name in plan["selected"]}
-        estimate, recovered, diagnostics = recover_parameters(
-            params,
-            bounds,
-            population=population,
-            recovery=RecoveryConfig(
-                grid_points=args.recovery_grid_points,
-                passes=args.recovery_passes,
-                target_replicates=args.replicates,
-                fit_replicates=args.replicates,
-                fit_seed_offset=1500,
-            ),
-            fit_conditions=selected_conditions,
+        recovery_config = RecoveryConfig(
+            grid_points=args.recovery_grid_points,
+            passes=args.recovery_passes,
+            target_replicates=args.replicates,
+            fit_replicates=args.replicates,
+            fit_seed_offset=1500,
         )
-        recovery_audit = {
-            "fit_conditions": list(selected_conditions),
-            "estimated": {name: getattr(estimate, name) for name in bounds},
-            "parameter_errors": [row.to_dict() for row in recovered],
-            "diagnostics": diagnostics,
-        }
+
+        def run_recovery(conditions):
+            estimate, recovered, diagnostics = recover_parameters(
+                params, bounds, population=population,
+                recovery=recovery_config, fit_conditions=conditions,
+            )
+            return {
+                "fit_conditions": list(conditions),
+                "estimated": {name: getattr(estimate, name) for name in bounds},
+                "parameter_errors": [row.to_dict() for row in recovered],
+                "diagnostics": diagnostics,
+            }
+
+        recovery_audit = run_recovery(selected_conditions)
+        reference_recovery = run_recovery(candidates)
 
     validation_passed = plan["status"] == "feasible" and all(
         result["passed"] for result in validations
@@ -404,6 +409,7 @@ def main() -> int:
         "independent_seed_validation": validations,
         "validation_passed": validation_passed,
         "selected_design_recovery": recovery_audit,
+        "full_design_recovery": reference_recovery,
     }
     out = Path(args.output)
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -425,6 +431,9 @@ def main() -> int:
             d = recovery_audit["diagnostics"]
             print(f"selected_recovery mean_rel_err={d['mean_relative_error']:.3f} "
                   f"holdout_objective={d['holdout_objective']:.5f}")
+            ref = reference_recovery["diagnostics"]
+            print(f"full_recovery mean_rel_err={ref['mean_relative_error']:.3f} "
+                  f"holdout_objective={ref['holdout_objective']:.5f}")
     if not validation_passed:
         print("FAIL: chosen design was infeasible or failed independent-seed checks")
     return 0 if validation_passed else 2
