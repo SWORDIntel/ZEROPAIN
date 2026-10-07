@@ -20,7 +20,6 @@ from research.human_sim.adaptation import (
     step_adaptation,
 )
 from research.human_sim.disposition import CompoundDisposition
-from research.human_sim.compound_pk import CompoundPKSpec
 from research.human_sim.pbpk import PBPKTrace, simulate_pbpk
 from research.human_sim.physiology import Physiology
 from research.human_sim.receptors import ReceptorState, ReceptorTarget, receptor_state
