@@ -331,6 +331,10 @@ def _parse_args() -> argparse.Namespace:
                    help="Fit hidden coefficients from the selected conditions only.")
     p.add_argument("--recovery-grid-points", type=int, default=5)
     p.add_argument("--recovery-passes", type=int, default=2)
+    p.add_argument("--max-recovery-inflation", type=float, default=1.5,
+                   help="Max selected/full recovery-error ratio before augmentation.")
+    p.add_argument("--recovery-max-extras", type=int, default=7,
+                   help="Maximum extra conditions added to preserve parameter recovery.")
     p.add_argument("--parameters", nargs="+", default=list(DEFAULT_BOUNDS),
                    choices=list(DEFAULT_BOUNDS))
     p.add_argument("--output", default="runs/dissociation_experiment_design.json")
@@ -354,21 +358,18 @@ def main() -> int:
     )
     blocks = _blocks_from_jacobian(jac, len(candidates), len(FIT_METRICS))
     plan = optimize_blocks(blocks, list(candidates), constraints=constraints)
-    validations = (
-        validate_selection(
-            selected=plan["selected"], candidates=candidates, bounds=bounds,
-            params=params, population=population, constraints=constraints,
-            seeds=args.validation_seeds, replicates=args.replicates,
-        )
-        if plan["status"] == "feasible" else []
-    )
     recovery_audit = None
     reference_recovery = None
+    recovery_refinement: list[dict] = []
+    recovery_passed = True
     if plan["status"] == "feasible" and args.recovery_check:
-        # Compare selected and full designs with *identical* optimiser resolution,
-        # sample sizes, seeds, and held-out conditions. Otherwise a reduction in
-        # parameter accuracy might simply be the result of a coarser grid.
-        selected_conditions = {name: candidates[name] for name in plan["selected"]}
+        if args.max_recovery_inflation < 1.0:
+            raise ValueError("max-recovery-inflation must be >= 1")
+        if args.recovery_max_extras < 0:
+            raise ValueError("recovery-max-extras must be >= 0")
+
+        # Compare selected and full designs with *identical* resolution, seeds,
+        # sample sizes and held-out conditions.
         recovery_config = RecoveryConfig(
             grid_points=args.recovery_grid_points,
             passes=args.recovery_passes,
@@ -389,11 +390,83 @@ def main() -> int:
                 "diagnostics": diagnostics,
             }
 
-        recovery_audit = run_recovery(selected_conditions)
         reference_recovery = run_recovery(candidates)
+        recovery_audit = run_recovery({
+            name: candidates[name] for name in plan["selected"]
+        })
 
-    validation_passed = plan["status"] == "feasible" and all(
-        result["passed"] for result in validations
+        def recovery_preserved(reduced):
+            d = reduced["diagnostics"]
+            ref = reference_recovery["diagnostics"]
+            # Floors prevent tiny reference errors from making the tolerance
+            # nonsensically strict at coarse optimiser resolution.
+            allowed_rel = max(0.10, args.max_recovery_inflation * ref["mean_relative_error"])
+            allowed_holdout = max(0.02, args.max_recovery_inflation * ref["holdout_objective"])
+            return (
+                d["mean_relative_error"] <= allowed_rel
+                and d["holdout_objective"] <= allowed_holdout
+            )
+
+        index_by_name = {name: idx for idx, name in enumerate(candidates)}
+        full = score_matrix(_chosen_matrix(blocks, list(index_by_name.values())), constraints)
+        max_count = constraints.budget or len(candidates)
+        for _ in range(args.recovery_max_extras):
+            if recovery_preserved(recovery_audit) or len(plan["selected"]) >= max_count:
+                break
+
+            # D-opt information gain is a surrogate for recovery benefit.
+            # Re-run the actual recovery after each augmentation; the Fisher
+            # approximation alone is not accepted as proof of sufficiency.
+            options = []
+            for name in candidates:
+                if name in plan["selected"]:
+                    continue
+                trial = [*plan["selected"], name]
+                s = score_matrix(
+                    _chosen_matrix(blocks, [index_by_name[x] for x in trial]),
+                    constraints,
+                )
+                if _is_feasible(s, full, len(bounds), constraints):
+                    options.append((s.logdet_fisher_regularized, name, s))
+            if not options:
+                break
+            options.sort(key=lambda item: (-item[0], item[1]))
+            _, chosen, chosen_score = options[0]
+            plan["selected"].append(chosen)
+            plan["selected_count"] = len(plan["selected"])
+            plan["selection_fraction"] = len(plan["selected"]) / len(candidates)
+            plan["selected_score"] = chosen_score.to_dict()
+            plan["history"].append({
+                "action": "augment_for_recovery",
+                "condition": chosen,
+                "score": chosen_score.to_dict(),
+            })
+            recovery_audit = run_recovery({
+                name: candidates[name] for name in plan["selected"]
+            })
+            recovery_refinement.append({
+                "added": chosen,
+                "selected_count": len(plan["selected"]),
+                "recovery_diagnostics": recovery_audit["diagnostics"],
+            })
+
+        recovery_passed = recovery_preserved(recovery_audit)
+        plan["recovery_refinement"] = recovery_refinement
+        plan["recovery_preserved"] = recovery_passed
+
+    # Validate final chosen set, not the smaller pre-refinement set.
+    validations = (
+        validate_selection(
+            selected=plan["selected"], candidates=candidates, bounds=bounds,
+            params=params, population=population, constraints=constraints,
+            seeds=args.validation_seeds, replicates=args.replicates,
+        )
+        if plan["status"] == "feasible" else []
+    )
+    validation_passed = (
+        plan["status"] == "feasible"
+        and all(result["passed"] for result in validations)
+        and recovery_passed
     )
     payload = {
         "schema_version": 1,
@@ -410,6 +483,8 @@ def main() -> int:
         "validation_passed": validation_passed,
         "selected_design_recovery": recovery_audit,
         "full_design_recovery": reference_recovery,
+        "recovery_refinement": recovery_refinement,
+        "recovery_preserved": recovery_passed,
     }
     out = Path(args.output)
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -434,6 +509,8 @@ def main() -> int:
             ref = reference_recovery["diagnostics"]
             print(f"full_recovery mean_rel_err={ref['mean_relative_error']:.3f} "
                   f"holdout_objective={ref['holdout_objective']:.5f}")
+            print(f"recovery_preserved={recovery_passed} "
+                  f"extra_conditions={len(recovery_refinement)}")
     if not validation_passed:
         print("FAIL: chosen design was infeasible or failed independent-seed checks")
     return 0 if validation_passed else 2
