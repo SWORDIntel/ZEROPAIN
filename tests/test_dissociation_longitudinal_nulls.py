@@ -3,6 +3,7 @@
 from research.dissociation.longitudinal_nulls import (
     LongitudinalConfig,
     benchmark_truth,
+    discrimination_diagnostics,
     generate_panel,
     permute_mechanisms_within_subject,
     run_benchmark,
@@ -87,3 +88,34 @@ def test_full_benchmark_runs_all_truth_families():
     for result in report["results"].values():
         assert result["best_test_model"]
         assert result["permuted_best_test_model"]
+
+
+
+def test_discrimination_diagnostic_uses_effect_sizes_not_only_rank():
+    from research.dissociation.longitudinal_nulls import ModelScore
+
+    def score(name, mse):
+        return ModelScore(
+            model=name,
+            parameters=1,
+            observed_test_values=20,
+            test_mse=mse,
+            test_rmse=mse ** 0.5,
+            test_r2=0.0,
+            train_bic=0.0,
+        )
+
+    original = [
+        score("context_history", 1.0),
+        score("mechanism_only", 0.8),
+        score("full", 0.75),
+    ]
+    permuted = [
+        score("context_history", 1.0),
+        score("mechanism_only", 1.1),
+        score("full", 1.0),
+    ]
+    result = discrimination_diagnostics(original, permuted)
+    assert result["status"] == "ok"
+    assert result["mechanism_gain_over_null_fraction"] > 0
+    assert result["mechanism_permutation_penalty_fraction"] > 0
