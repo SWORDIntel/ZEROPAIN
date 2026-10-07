@@ -94,3 +94,12 @@ jobs:
           python -m research.dissociation.run_observation_model \
             --states 4 --steps 120 \
             --output /tmp/dissociation_observation_model.json
+
+      - name: Upload synthetic research diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dissociation-simulation-audits
+          path: /tmp/dissociation_*.json
+          if-no-files-found: ignore
+          retention-days: 14
