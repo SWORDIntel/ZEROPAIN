@@ -27,6 +27,11 @@ SCENARIOS = {
         meth=0.75,
         wake_anchor_disruption=0.90,
     ),
+    "meth_nmda_wake_disruption": MechanismInput(
+        meth=0.75,
+        nmda_antagonism=0.60,
+        wake_anchor_disruption=0.90,
+    ),
     "meth_mor_partial": MechanismInput(
         meth=0.75,
         mor_partial_agonism=0.60,
