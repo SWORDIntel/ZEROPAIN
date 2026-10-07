@@ -89,11 +89,20 @@ def run_phase_sweep(
                     "mean_truth_accuracy": float(
                         np.mean([s.truth_accuracy for s in samples])
                     ),
+                    "mean_communication_opportunities_per_step": float(
+                        np.mean([s.communication_opportunities_per_step for s in samples])
+                    ),
                     "mean_withholding_rate": float(
                         np.mean([s.withholding_rate for s in samples])
                     ),
+                    "mean_withholding_events_per_step": float(
+                        np.mean([s.withholding_events_per_step for s in samples])
+                    ),
                     "mean_false_report_rate": float(
                         np.mean([s.false_report_rate for s in samples])
+                    ),
+                    "mean_false_report_events_per_step": float(
+                        np.mean([s.false_report_events_per_step for s in samples])
                     ),
                     "mean_adversarial_fraction": float(
                         np.mean([s.adversarial_steps / steps for s in samples])
