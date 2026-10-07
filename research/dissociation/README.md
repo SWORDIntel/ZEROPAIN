@@ -275,3 +275,82 @@ scalar gating model
 This gives us increasingly expressive models while retaining simpler null models for
 comparison. A more complex model only earns its keep if it predicts observations better
 than the lower layers.
+
+
+## Belief/claim integrity ledger
+
+The fourth layer adds explicit **fact content** so information integrity can be measured
+rather than inferred from accessibility alone:
+
+```bash
+python -m research.dissociation.run_belief_network \
+  --states 4 \
+  --steps 480 \
+  --sync-interval 96 \
+  --trace \
+  --output runs/dissociation_belief_network.json
+```
+
+Each external fact has a simulator-only ground truth. Synthetic states can:
+
+- observe it correctly or incorrectly;
+- not observe it at all;
+- share it with another state;
+- withhold it when pairwise trust is low;
+- emit a false report when trust falls much further;
+- reconcile beliefs at a successful synchronization event.
+
+This allows three quantities that were previously conflated to be separated:
+
+```text
+cross-state consistency
+truth accuracy
+false consensus
+```
+
+A system can therefore become **highly consistent and still wrong**, which matters when
+a synchronization event propagates a majority belief rather than privileged ground
+truth.
+
+### Cooperation → fragmentation → adversarial regime
+
+The model also exposes a deliberately simple regime classifier:
+
+```text
+COOPERATIVE
+  high trust + high consistency
+
+FRAGMENTED
+  intermediate trust / inconsistent information
+
+ADVERSARIAL
+  very low trust or sustained false-report rate
+```
+
+These labels are simulation taxonomy, not diagnostic categories.
+
+Crucially, no synthetic state is assigned a permanent "liar" or "hostile" identity.
+Withholding and false reporting arise from the current pairwise trust network. The
+same synthetic state can therefore cooperate in one run and become adversarial in
+another.
+
+The default model also sets:
+
+```text
+direct_meth_misreport_weight = 0
+```
+
+so methamphetamine does **not** automatically cause deception by fiat. If a fitted
+model eventually requires a direct effect, it must outperform the indirect pathway:
+
+```text
+meth/NMDA perturbation
+    -> encoding/information divergence
+    -> contradictions
+    -> trust erosion
+    -> withholding
+    -> false reporting
+```
+
+That distinction is central to making the observation falsifiable rather than merely
+encoding it into the answer.
