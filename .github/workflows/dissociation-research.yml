@@ -94,6 +94,12 @@ jobs:
             --grid-points 5 --passes 2 \
             --output /tmp/dissociation_observable_design.json
 
+          python -m research.dissociation.longitudinal_nulls \
+            --subjects 4 --sessions 14 \
+            --micro-population 45 --steps 14 \
+            --missing 0.08 \
+            --output /tmp/dissociation_longitudinal_nulls.json
+
           python -m research.dissociation.model_selection_stability \
             --seeds 3 --steps 140 --states 4 \
             --transient-lags 2 --test-every 5 \
