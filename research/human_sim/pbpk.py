@@ -29,6 +29,7 @@ from typing import Callable, Mapping
 import numpy as np
 
 from research.human_sim.disposition import CompoundDisposition
+from research.human_sim.compound_pk import CompoundPKSpec
 from research.human_sim.physiology import Physiology
 
 
