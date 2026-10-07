@@ -335,12 +335,19 @@ def load_population_csv(
     path: str | Path,
     *,
     format: str = "auto",
+    source_id: str | None = None,
 ) -> list[VirtualIndividual]:
     selected = detect_population_format(path) if format == "auto" else format.lower()
     if selected == "httk":
-        return load_httkpop_csv(path)
+        return load_httkpop_csv(
+            path,
+            config=PopulationImportConfig(source_id=source_id or "httk_population"),
+        )
     if selected == "pksim":
-        return load_pksim_csv(path)
+        return load_pksim_csv(
+            path,
+            config=PopulationImportConfig(source_id=source_id or "pksim_population"),
+        )
     raise ValueError("format must be one of: auto, httk, pksim")
 
 
