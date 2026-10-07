@@ -31,6 +31,7 @@ class Physiology:
     tissues: tuple[TissueSpec, ...]
     label: str = "custom"
     evidence_status: str = "user_supplied_or_synthetic"
+    source_ids: tuple[str, ...] = ()
 
     def validate(self) -> None:
         if self.central_volume_l <= 0:
@@ -57,6 +58,7 @@ class Physiology:
         return {
             **{k: v for k, v in asdict(self).items() if k != "tissues"},
             "tissues": [asdict(tissue) for tissue in self.tissues],
+            "source_ids": list(self.source_ids),
         }
 
 
