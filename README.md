@@ -240,6 +240,67 @@ The `DistributedRunner` is designed to survive crashes, OOM kills, and SIGTERM:
 
 ---
 
+## ECC-like shadow verification
+
+ZeroPain now has an optional **silent result verifier** modeled on ECC syndrome bits.
+It is separate from the existing SHA-384/CNSA chain-of-custody layer: cryptographic
+hashing proves artifact integrity, while the shadow verifier also checks result
+structure, numeric sanity, domain invariants and optional deterministic replay.
+
+Enable cheap write-time checking:
+
+```bash
+export ZEROPAIN_VERIFY=1
+export ZEROPAIN_VERIFY_LOG=runs/verification.jsonl
+```
+
+Make verification fail closed:
+
+```bash
+export ZEROPAIN_VERIFY_STRICT=1
+```
+
+Enable the expensive deterministic replay bit for runners that expose replay hooks:
+
+```bash
+export ZEROPAIN_VERIFY_REPLAY=1
+```
+
+Syndrome mask:
+
+```text
+0x01  canonical serialization failed
+0x02  non-finite numeric value
+0x04  bounded probability/accuracy/consistency/trust field out of range
+0x08  model-specific cross-field invariant failed
+0x10  deterministic replay digest mismatch
+0x20  independent implementation/checker disagreement
+0x40  written-file/storage round-trip mismatch
+```
+
+`syndrome = 0` means every **enabled** check passed. It does not mean a biological
+hypothesis is true.
+
+The verifier appends compact JSONL records containing the result SHA-256, syndrome,
+enabled checks and output path; it does not modify the result JSON or print anything
+on success.
+
+Periodic scrub:
+
+```bash
+python -m zeropain.verification_scrub --log runs/verification.jsonl
+```
+
+This re-hashes previously verified result files and detects post-write mutation or
+corruption. Use `--verbose` only when interactive output is wanted.
+
+Project-wide APIs:
+
+```python
+from zeropain.verification import verify
+from zeropain.verified_io import write_json
+```
+
 ## Integrity & auditing
 
 - Every run is hashed with SHA-384 and stored in a CNSA 2.0 signature envelope.
