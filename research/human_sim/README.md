@@ -175,16 +175,69 @@ This is deliberate: architecture first, then sourced calibration.
 
 ## Next milestones
 
-### Milestone 2 — source-backed virtual physiology
+### Milestone 2 — source-backed virtual physiology — IN PROGRESS
 
-Add provenance-bearing distributions for:
+HumanSim now supports importing **correlated virtual individuals** from an
+`httk::httkpop_generate()` CSV instead of inventing independent Gaussian organ
+variation.
 
-- compartment volumes;
-- organ blood flow;
-- tissue/plasma partition coefficients;
-- unbound fractions;
-- hepatic and renal clearance;
-- BBB-specific transport where applicable.
+Generate a source-backed population externally in R:
+
+```r
+library(httk)
+set.seed(42)
+
+pop <- httkpop_generate(
+  method = "direct resampling",
+  nsamp = 1000,
+  agelim_years = c(18, 79)
+)
+
+write.csv(pop, "httkpop.csv", row.names = FALSE)
+```
+
+Then run:
+
+```bash
+python -m research.human_sim.run_population httkpop.csv \
+  --output runs/human_sim_population.json
+```
+
+The adapter currently keeps brain, liver and kidney explicit and lumps the remaining
+body mass/flow into a peripheral compartment. That is a **documented model-reduction
+transform**, not a lossless reproduction of httk.
+
+The output records:
+- source ID and citation registry;
+- SHA-256 of the imported population file;
+- individual count;
+- exact transform descriptions;
+- empirical physiology means/SDs;
+- empirical 5th/50th/95th percentile model outcomes.
+
+This preserves covariance between body size, tissue masses and flows because complete
+individual rows are imported together.
+
+### Important architecture correction
+
+Tissue/plasma partition coefficients, unbound fractions and clearance are **not human
+physiology constants**. They now live in `CompoundDisposition`.
+
+```text
+Physiology
+  organ volume
+  organ blood flow
+  central volume
+
+CompoundDisposition
+  tissue:plasma partition coefficients
+  plasma/brain unbound fraction
+  hepatic clearance
+  renal clearance
+```
+
+The same virtual person can therefore be reused across many compound profiles without
+changing their anatomy.
 
 Every calibrated parameter should carry:
 
@@ -200,6 +253,21 @@ evidence status
 ```
 
 No unsourced default should silently become a "human" constant.
+
+### Population source provenance
+
+Current registry entries include:
+- `httk_population` — Ring et al. 2017 virtual-population methodology;
+- `httk_tissue` — httk physiology/tissue tables and their compiled references;
+- `pksim_population` — Open Systems Pharmacology human population database/export;
+- `schmitt_partitioning` — compound-specific tissue partition modelling.
+
+The committed `examples/httkpop_synthetic_fixture.csv` exists **only for CI** and is
+not a real httk export.
+
+The density conversions used by the current reduced httk adapter are explicit
+approximation constants and remain a calibration TODO. A later adapter should ingest
+direct organ volumes where the upstream population export provides them.
 
 ### Milestone 3 — multi-ligand receptor competition
 
