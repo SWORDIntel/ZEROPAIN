@@ -24,6 +24,8 @@ from typing import Dict, Iterable, Mapping, Sequence
 
 import numpy as np
 
+from zeropain.verified_io import write_json
+
 from research.dissociation.experimental_design import build_candidate_library
 from research.dissociation.model import MechanismInput, ModelParameters, PopulationConfig, simulate
 from research.dissociation.observable_model import (
@@ -593,9 +595,23 @@ def main() -> int:
         ),
         measurement=MeasurementConfig(missing_probability=args.missing),
     )
-    out = Path(args.output)
-    out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+    def benchmark_relation(value):
+        failures = []
+        for truth, result in value["results"].items():
+            models = {row["model"] for row in result["scores"]}
+            if result["best_test_model"] not in models:
+                failures.append(f"{truth}: best_test_model absent from scores")
+            if result["best_bic_model"] not in models:
+                failures.append(f"{truth}: best_bic_model absent from scores")
+        return (not failures, "; ".join(failures))
+
+    out = write_json(
+        args.output,
+        report,
+        label="dissociation.longitudinal_nulls",
+        relations=[benchmark_relation],
+        metadata={"seed": args.seed, "subjects": args.subjects, "sessions": args.sessions},
+    )
 
     print(f"Wrote longitudinal null-model benchmark to {out}")
     for truth, result in report["results"].items():
