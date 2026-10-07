@@ -86,6 +86,14 @@ jobs:
             --recovery-check --recovery-grid-points 5 --recovery-passes 2 \
             --output /tmp/dissociation_experimental_design.json
 
+          python -m research.dissociation.observable_design \
+            --subjects 160 --steps 30 --replicates 2 \
+            --panels switch_only observer_only observer_wearable multimodal \
+            --max-condition 15 --min-singular-fraction 0.20 \
+            --missing 0.10 --validation-seeds 711 \
+            --grid-points 5 --passes 2 \
+            --output /tmp/dissociation_observable_design.json
+
           python -m research.dissociation.model_selection_stability \
             --seeds 3 --steps 140 --states 4 \
             --transient-lags 2 --test-every 5 \
