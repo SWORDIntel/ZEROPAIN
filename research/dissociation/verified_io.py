@@ -59,7 +59,8 @@ def write_json(
         label=label,
         relations=relations,
         replay=replay if replay_enabled else None,
-        independent=file_roundtrip,
+        independent=independent,
+        storage=file_roundtrip,
         metadata={
             "output_path": str(out),
             **dict(metadata or {}),
