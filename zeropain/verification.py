@@ -10,6 +10,7 @@ bit 2  RANGE          declared probabilities/rates stay in [0,1]
 bit 3  RELATION       supplied cross-field invariants hold
 bit 4  REPLAY         deterministic replay matches the original result
 bit 5  INDEPENDENT    optional independent checker agrees
+bit 6  STORAGE        written result/file round-trip agrees
 
 A zero syndrome means "all enabled checks passed", not "scientifically true".
 
@@ -44,6 +45,7 @@ class CheckBit(IntFlag):
     RELATION = 1 << 3
     REPLAY = 1 << 4
     INDEPENDENT = 1 << 5
+    STORAGE = 1 << 6
 
 
 @dataclass(frozen=True)
@@ -206,6 +208,7 @@ def verify(
     relations: Sequence[Callable[[Any], tuple[bool, str] | bool]] = (),
     replay: Callable[[], Any] | None = None,
     independent: Callable[[Any], tuple[bool, str] | bool] | None = None,
+    storage: Callable[[Any], tuple[bool, str] | bool] | None = None,
     metadata: Mapping[str, Any] | None = None,
     force: bool = False,
 ) -> VerificationRecord | None:
@@ -264,6 +267,12 @@ def verify(
         "independent_checker",
         lambda: independent_check(value, independent),
         enabled_=independent is not None,
+    )
+    run(
+        CheckBit.STORAGE,
+        "storage_roundtrip",
+        lambda: independent_check(value, storage),
+        enabled_=storage is not None,
     )
 
     record = VerificationRecord(
