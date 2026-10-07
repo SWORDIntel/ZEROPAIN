@@ -1,6 +1,7 @@
 import numpy as np
 
 from research.human_sim.disposition import synthetic_reference_disposition
+from research.human_sim.compound_pk import synthetic_compound_pk
 from research.human_sim.engine import simulate_human_chain, synthetic_target_panel
 from research.human_sim.physiology import synthetic_reference_physiology
 
