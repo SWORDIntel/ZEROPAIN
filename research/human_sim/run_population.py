@@ -39,6 +39,14 @@ def _parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("population_csv")
     p.add_argument("--format", choices=("auto", "httk", "pksim"), default="auto")
+    p.add_argument(
+        "--source-id",
+        default="",
+        help=(
+            "Explicit provenance ID, independent of file format. "
+            "Use synthetic_fixture for bundled/test data."
+        ),
+    )
     p.add_argument("--limit", type=int, default=0)
     p.add_argument("--duration-h", type=float, default=6.0)
     p.add_argument("--dt-h", type=float, default=0.05)
@@ -65,7 +73,12 @@ def _q(values: list[float]) -> dict[str, float]:
 def build_payload(args: argparse.Namespace) -> dict:
     path = Path(args.population_csv)
     selected_format = detect_population_format(path) if args.format == "auto" else args.format
-    individuals = load_population_csv(path, format=selected_format)
+    explicit_source_id = args.source_id.strip() or None
+    individuals = load_population_csv(
+        path,
+        format=selected_format,
+        source_id=explicit_source_id,
+    )
     if args.limit > 0:
         individuals = individuals[: args.limit]
     if not individuals:
@@ -105,9 +118,12 @@ def build_payload(args: argparse.Namespace) -> dict:
 
     digest = hashlib.sha256(path.read_bytes()).hexdigest()
     population_summary = summarize_population(individuals)
-    source_id = "httk_population" if selected_format == "httk" else "pksim_population"
+    source_id = (
+        explicit_source_id
+        or ("httk_population" if selected_format == "httk" else "pksim_population")
+    )
     evidence_ids = [source_id]
-    if selected_format == "httk":
+    if selected_format == "httk" and source_id == "httk_population":
         evidence_ids.append("httk_tissue")
 
     uncertainty_vectors = {
