@@ -317,3 +317,23 @@ This repository and the underlying pharmaceutical compositions, biophase models,
 **UNAUTHORIZED COMMERCIAL USE, DECOMPILATION, AI MODEL INGESTION/TRAINING, CLINICAL PRACTICE, OR SYNTHETIC COMPOUNDING IS STRICTLY PROHIBITED AND SUBJECT TO IMMEDIATE LEGAL INJUNCTION AND LIQUIDATED DAMAGES UNDER THE LAWS OF ENGLAND AND WALES.**
 
 
+
+
+---
+
+## Legacy Pharmacology Research Corpus
+
+ZeroPain now treats the historical "unholy opioid" notebook as a **hypothesis corpus,
+not validated pharmacology**. The generated legacy shadows remain available, but every
+legacy-only claim is blocked from simulation promotion until literature review resolves
+receptor direction, affinity/efficacy, assay context, and safety assertions.
+
+- [Legacy corpus research workflow](doc/UNHOLY_OPIOID_CORPUS_RESEARCH.md)
+- [Opioid/NOP/NMDA dissociative-state hypotheses](doc/DISSOCIATION_OPIOID_GLUTAMATE_HYPOTHESES.md)
+- Claim audit: `python scripts/audit_legacy_opioids.py --only-flagged`
+
+The audit specifically prioritizes mixed/partial MOR pharmacology, KOR/dynorphin,
+NOP/ORL-1, opioid × NMDA/glutamate interactions, endogenous peptide modulation,
+outdated scheduling claims, therapeutic superlatives, and unsafe absolute
+dependence/tolerance claims.
+
