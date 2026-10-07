@@ -66,6 +66,7 @@ jobs:
             --subjects 250 --steps 40 \
             --parameters meth_salience_weight nmda_integration_weight mor_partial_control_weight \
             --grid-points 7 --passes 3 \
+            --target-replicates 2 --fit-replicates 2 --fit-seed-offset 1000 \
             --output /tmp/dissociation_parameter_recovery.json
 
           python -m research.dissociation.model_comparison \
