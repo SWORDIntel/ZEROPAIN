@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import hashlib
 from dataclasses import asdict, replace
 from pathlib import Path
 from typing import Mapping, Sequence
@@ -72,14 +73,29 @@ def sampled_matrix(
     observation_seed: int = 10021,
 ) -> np.ndarray:
     """Observed counts/noisy sensors only; no latent columns are returned."""
-    rng = np.random.default_rng(observation_seed)
     observations = []
     for population in populations:
         summaries = compare_conditions(dict(conditions), config=population, params=params)
-        observations.append(np.array([
-            select_channels(sample_observables(summaries[name], rng, config=measurement), panel)
-            for name in conditions
-        ]))
+        rows = []
+        for name in conditions:
+            # A named condition gets *identical* observation draws regardless of
+            # iteration order or other conditions in the experiment. This makes
+            # selected-vs-full comparisons properly paired.
+            digest = int.from_bytes(
+                hashlib.blake2b(name.encode("utf-8"), digest_size=8).digest(),
+                "little",
+            )
+            seed_words = [
+                int(observation_seed),
+                int(population.seed),
+                int(digest & 0xffffffff),
+                int(digest >> 32),
+            ]
+            rng = np.random.default_rng(np.random.SeedSequence(seed_words))
+            rows.append(select_channels(
+                sample_observables(summaries[name], rng, config=measurement), panel,
+            ))
+        observations.append(np.asarray(rows, dtype=float))
     stacked = np.stack(observations, axis=0)
     with np.errstate(invalid="ignore"):
         valid = np.isfinite(stacked)
