@@ -1,0 +1,6 @@
+seqn,gender,age_years,weight,weight_adj,Blood_mass,Brain_mass,Brain_flow,Liver_mass,Liver_flow,Kidneys_mass,Kidneys_flow,CO,hematocrit
+9001,Female,31,62,61.5,4.7,1.35,42,1.45,78,0.30,65,290,41
+9002,Male,48,84,83.2,5.8,1.48,47,1.80,92,0.34,72,335,45
+9003,Female,66,72,71.1,5.0,1.29,38,1.55,73,0.28,58,270,39
+9004,Male,26,75,74.6,5.3,1.44,46,1.65,85,0.32,69,320,44
+9005,Female,55,68,67.4,4.9,1.31,40,1.50,76,0.29,61,282,40
