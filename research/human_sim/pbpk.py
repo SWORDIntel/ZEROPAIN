@@ -11,9 +11,11 @@ which is equivalent to a two-compartment linear exchange with:
     k_c_to_t = Q_t / V_c
     k_t_to_c = Q_t / (V_t * Kp_t)
 
-Each pairwise exchange is solved analytically for the timestep. This guarantees
-non-negative amounts and exact conservation during exchange. Clearance is applied
-analytically and accumulated into an explicit eliminated-amount state.
+Each pairwise exchange is solved analytically and composed with a symmetric
+forward/reverse half-sweep around the clearance operator. This reduces directional
+operator-splitting bias while retaining non-negative amounts and exact conservation
+during exchange. Clearance is applied analytically and accumulated into an explicit
+eliminated-amount state.
 
 External input is an arbitrary amount/time callback. It is intentionally not a
 dose-conversion interface.
@@ -114,6 +116,46 @@ def _clear_amount(amount: float, clearance_rate_per_h: float, dt: float) -> tupl
     return float(remaining), float(removed)
 
 
+def _exchange_sweep(
+    central: float,
+    tissue_state: dict[str, float],
+    *,
+    physiology: Physiology,
+    disposition: CompoundDisposition,
+    dt: float,
+    reverse: bool = False,
+) -> tuple[float, dict[str, float]]:
+    """Apply one ordered analytical pairwise-exchange sweep.
+
+    A forward half-sweep followed later by a reverse half-sweep gives a symmetric
+    Strang-style composition and removes most directional operator-splitting bias.
+    """
+
+    tissues = physiology.tissue_map
+    names = list(tissues)
+    if reverse:
+        names.reverse()
+
+    for name in names:
+        tissue = tissues[name]
+        k_forward = tissue.blood_flow_l_per_h / physiology.central_volume_l
+        k_reverse = (
+            tissue.blood_flow_l_per_h
+            / (
+                tissue.volume_l
+                * disposition.tissue_partition_coefficients[name]
+            )
+        )
+        central, tissue_state[name] = _exchange_pair(
+            central,
+            tissue_state[name],
+            k_forward,
+            k_reverse,
+            dt,
+        )
+    return central, tissue_state
+
+
 def simulate_pbpk(
     physiology: Physiology,
     disposition: CompoundDisposition,
@@ -166,29 +208,32 @@ def simulate_pbpk(
         if dt <= 0:
             continue
 
-        rate = 0.0 if input_rate is None else float(input_rate(float(t0)))
-        if rate < 0:
-            raise ValueError("input_rate cannot return a negative value")
-        added = rate * dt
-        central += added
-        cumulative_input += added
+        # Symmetric source/exchange/clearance composition.
+        #
+        # Source is split across the beginning/end of the step using endpoint rates;
+        # pairwise exchange is half-stepped forward then reverse; clearance is the
+        # central full operator. This substantially reduces tissue-order bias while
+        # retaining positivity and exact pairwise conservation.
+        if input_rate is None:
+            rate_start = rate_end = 0.0
+        else:
+            rate_start = float(input_rate(float(t0)))
+            rate_end = float(input_rate(float(t1)))
+            if rate_start < 0 or rate_end < 0:
+                raise ValueError("input_rate cannot return a negative value")
 
-        for name, tissue in tissues.items():
-            k_forward = tissue.blood_flow_l_per_h / physiology.central_volume_l
-            k_reverse = (
-                tissue.blood_flow_l_per_h
-                / (
-                    tissue.volume_l
-                    * disposition.tissue_partition_coefficients[name]
-                )
-            )
-            central, tissue_state[name] = _exchange_pair(
-                central,
-                tissue_state[name],
-                k_forward,
-                k_reverse,
-                dt,
-            )
+        added_start = 0.5 * rate_start * dt
+        central += added_start
+        cumulative_input += added_start
+
+        central, tissue_state = _exchange_sweep(
+            central,
+            tissue_state,
+            physiology=physiology,
+            disposition=disposition,
+            dt=0.5 * dt,
+            reverse=False,
+        )
 
         liver = tissues.get("liver")
         if liver is not None and disposition.hepatic_clearance_l_per_h > 0:
@@ -205,6 +250,19 @@ def simulate_pbpk(
                 tissue_state["kidney"], rate_h, dt
             )
             eliminated += removed
+
+        central, tissue_state = _exchange_sweep(
+            central,
+            tissue_state,
+            physiology=physiology,
+            disposition=disposition,
+            dt=0.5 * dt,
+            reverse=True,
+        )
+
+        added_end = 0.5 * rate_end * dt
+        central += added_end
+        cumulative_input += added_end
 
         accounted = central + sum(tissue_state.values()) + eliminated
         expected = initial_total + cumulative_input
