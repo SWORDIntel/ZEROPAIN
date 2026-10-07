@@ -57,6 +57,11 @@ jobs:
             --states 4 --steps 120 --sync-interval 30 \
             --output /tmp/dissociation_belief_network.json
 
+          python -m research.dissociation.belief_phase_sweep \
+            --trust-levels 0.25 0.45 0.65 \
+            --steps 80 --seeds 2 --sync-interval 20 \
+            --output /tmp/dissociation_belief_phase_sweep.json
+
           python -m research.dissociation.run_observation_model \
             --states 4 --steps 120 \
             --output /tmp/dissociation_observation_model.json
