@@ -26,6 +26,7 @@ from typing import Callable, Mapping
 
 import numpy as np
 
+from research.human_sim.disposition import CompoundDisposition
 from research.human_sim.physiology import Physiology
 
 
@@ -115,6 +116,7 @@ def _clear_amount(amount: float, clearance_rate_per_h: float, dt: float) -> tupl
 
 def simulate_pbpk(
     physiology: Physiology,
+    disposition: CompoundDisposition,
     *,
     duration_h: float,
     dt_h: float,
@@ -125,6 +127,8 @@ def simulate_pbpk(
     """Simulate the compartment system using arbitrary amount units."""
 
     physiology.validate()
+    tissues = physiology.tissue_map
+    disposition.validate(set(tissues))
     if duration_h <= 0 or dt_h <= 0:
         raise ValueError("duration_h and dt_h must be positive")
     if initial_central_amount < 0:
@@ -132,7 +136,6 @@ def simulate_pbpk(
 
     n_steps = int(np.ceil(duration_h / dt_h))
     times = np.minimum(np.arange(n_steps + 1) * dt_h, duration_h)
-    tissues = physiology.tissue_map
     initial_tissue_amounts = dict(initial_tissue_amounts or {})
 
     unknown = set(initial_tissue_amounts) - set(tissues)
@@ -174,7 +177,10 @@ def simulate_pbpk(
             k_forward = tissue.blood_flow_l_per_h / physiology.central_volume_l
             k_reverse = (
                 tissue.blood_flow_l_per_h
-                / (tissue.volume_l * tissue.partition_coefficient)
+                / (
+                    tissue.volume_l
+                    * disposition.tissue_partition_coefficients[name]
+                )
             )
             central, tissue_state[name] = _exchange_pair(
                 central,
@@ -185,16 +191,16 @@ def simulate_pbpk(
             )
 
         liver = tissues.get("liver")
-        if liver is not None and physiology.hepatic_clearance_l_per_h > 0:
-            rate_h = physiology.hepatic_clearance_l_per_h / liver.volume_l
+        if liver is not None and disposition.hepatic_clearance_l_per_h > 0:
+            rate_h = disposition.hepatic_clearance_l_per_h / liver.volume_l
             tissue_state["liver"], removed = _clear_amount(
                 tissue_state["liver"], rate_h, dt
             )
             eliminated += removed
 
         kidney = tissues.get("kidney")
-        if kidney is not None and physiology.renal_clearance_l_per_h > 0:
-            rate_h = physiology.renal_clearance_l_per_h / kidney.volume_l
+        if kidney is not None and disposition.renal_clearance_l_per_h > 0:
+            rate_h = disposition.renal_clearance_l_per_h / kidney.volume_l
             tissue_state["kidney"], removed = _clear_amount(
                 tissue_state["kidney"], rate_h, dt
             )
@@ -215,7 +221,7 @@ def simulate_pbpk(
     brain_arr = np.asarray(tissue_history["brain"], dtype=float)
     central_conc = central_arr / physiology.central_volume_l
     brain_total = brain_arr / tissues["brain"].volume_l
-    brain_free = brain_total * physiology.brain_unbound_fraction
+    brain_free = brain_total * disposition.brain_unbound_fraction
 
     return PBPKTrace(
         times_h=np.asarray(times, dtype=float),
