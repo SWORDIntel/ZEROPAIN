@@ -188,23 +188,22 @@ variation.
 
 Generate a source-backed population externally in R:
 
-```r
-library(httk)
-set.seed(42)
-
-pop <- httkpop_generate(
-  method = "direct resampling",
-  nsamp = 1000,
-  agelim_years = c(18, 79)
-)
-
-write.csv(pop, "httkpop.csv", row.names = FALSE)
+```bash
+Rscript research/human_sim/examples/generate_httk_population.R \
+  httkpop.csv 1000 42
 ```
+
+The script calls `httk::httkpop_generate(method="direct resampling")`, which
+resamples correlated NHANES-linked virtual individuals rather than independently
+drawing each organ variable.
 
 Then run:
 
 ```bash
 python -m research.human_sim.run_population httkpop.csv \
+  --format httk \
+  --source-id httk_population \
+  --bootstrap-resamples 1000 \
   --output runs/human_sim_population.json
 ```
 
@@ -222,6 +221,18 @@ The output records:
 
 This preserves covariance between body size, tissue masses and flows because complete
 individual rows are imported together.
+
+Population outputs now also include:
+
+- an empirical physiology correlation matrix for the reduced HumanSim variables;
+- q05/q50/q95 outcome spread across virtual individuals;
+- percentile-bootstrap intervals for the finite-population mean and median outcomes;
+- an explicit warning that bootstrap intervals are **sampling uncertainty only**,
+  not total biological/model uncertainty.
+
+This distinction matters: PBPK best-practice guidance separates inter-individual
+variability from uncertainty in model parameters and recommends propagating both
+rather than collapsing them into one interval.
 
 ### Important architecture correction
 
@@ -269,6 +280,10 @@ Current registry entries include:
 
 The committed `examples/httkpop_synthetic_fixture.csv` exists **only for CI** and is
 not a real httk export.
+
+The population CLI separates file **format** from **provenance**. The CI fixture is
+run with `--source-id synthetic_fixture`; a file merely having httk-compatible
+columns is therefore not automatically labelled as a real httk population.
 
 HumanSim also includes `reference_physiology.py`, a reduced literature-reference
 composite used only for sanity auditing imported populations. It combines:
