@@ -715,3 +715,76 @@ channels here are intentionally fabricated proxy readouts, not established bioma
 The next step requires real, consented longitudinal observational data and testing
 an alternative model without these hypothesised receptor mechanisms. There is no
 basis for using these candidate conditions as human drug-challenge protocols.
+
+
+## Longitudinal competing-null benchmark
+
+Formal identifiability is not enough. A receptor-labelled model must beat simpler
+explanations on held-out longitudinal observations, and the benchmark must also
+recognize when those simpler explanations are actually true.
+
+`longitudinal_nulls.py` generates synthetic repeated-session panels under three
+different truth families:
+
+```text
+receptor truth
+    existing dimensionless meth / NMDA / MOR-partial / KOR-antagonist / wake model
+
+context truth
+    generic stress + sleep/wake irregularity + social-conflict load + history only
+
+mixed truth
+    convex mixture of the two generators
+```
+
+The competing models are:
+
+- mean-only;
+- autoregressive/history-only;
+- context-only;
+- context + history;
+- mechanism labels only;
+- context + mechanism;
+- full context + history + mechanism.
+
+All models receive the same subject fixed effects and are scored on each subject's
+**held-out final sessions**, not random row holdout.
+
+```bash
+python -m research.dissociation.longitudinal_nulls \
+  --subjects 6 --sessions 24 \
+  --micro-population 90 --steps 28 \
+  --missing 0.10 \
+  --output runs/dissociation_longitudinal_nulls.json
+```
+
+### Required falsification checks
+
+The benchmark intentionally makes non-pharmacological context mildly correlated with
+some mechanism labels, so receptor covariates do not get an unrealistically easy
+classification problem.
+
+It also permutes mechanism labels **within subject** while preserving stress, wake,
+history, outcomes and temporal ordering. Under receptor-generated truth the mechanism
+advantage should weaken after permutation. Under context-generated truth, receptor
+labels should not be required at all.
+
+A benchmark where the receptor model wins both receptor-truth and context-truth
+datasets is considered **biased**, not successful.
+
+### Current scope
+
+This is still synthetic session-level longitudinal data. It is not a human exposure
+schedule. The mechanism fields are dimensionless model labels, and the wearable/EEG
+outcomes remain synthetic proxies.
+
+The purpose of this layer is model falsification:
+
+```text
+Can generic context + history explain the same observations?
+If yes -> receptor mechanism not identified.
+If no  -> receptor-labelled model earns further testing, not acceptance.
+```
+
+The next bridge to real data is a consented observational CSV schema with no required
+drug exposure fields, followed by the same blocked-time null-model comparison.
