@@ -11,7 +11,7 @@ import os
 from dataclasses import asdict
 
 from research.human_sim.disposition import synthetic_reference_disposition
-from research.human_sim.compound_pk import synthetic_compound_pk
+from research.human_sim.disposition import synthetic_reference_disposition
 from research.human_sim.engine import simulate_human_chain, synthetic_target_panel
 from research.human_sim.pbpk import simulate_pbpk
 from research.human_sim.pbpk_reference import compare_to_reference, simulate_pbpk_reference
