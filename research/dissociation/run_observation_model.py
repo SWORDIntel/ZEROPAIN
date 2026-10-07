@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 import argparse
-import json
 from dataclasses import asdict
-from pathlib import Path
 
 from research.dissociation.model import MechanismInput
 from research.dissociation.observation_model import (
@@ -18,6 +16,7 @@ from research.dissociation.state_network import (
     StateNetworkParameters,
     simulate_state_network,
 )
+from research.dissociation.verified_io import write_json
 
 
 SCENARIOS = {
@@ -39,8 +38,7 @@ def _parser() -> argparse.ArgumentParser:
     return p
 
 
-def main() -> int:
-    args = _parser().parse_args()
+def build_payload(args: argparse.Namespace) -> dict:
     state_config = StateNetworkConfig(
         n_states=args.states,
         steps=args.steps,
@@ -73,7 +71,7 @@ def main() -> int:
             record["transient_component"] = observation.transient_component.tolist()
         results[name] = record
 
-    payload = {
+    return {
         "schema_version": 1,
         "model": "synthetic_state_physiology_observation",
         "warning": (
@@ -86,12 +84,20 @@ def main() -> int:
         "results": results,
     }
 
-    out = Path(args.output)
-    out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
 
-    print(f"Wrote {len(results)} observation scenarios to {out}")
-    for name, record in results.items():
+def main() -> int:
+    args = _parser().parse_args()
+    payload = build_payload(args)
+    out = write_json(
+        args.output,
+        payload,
+        label="dissociation.observation_model",
+        replay=lambda: build_payload(args),
+        metadata={"seed": args.seed, "steps": args.steps, "states": args.states},
+    )
+
+    print(f"Wrote {len(payload['results'])} observation scenarios to {out}")
+    for name, record in payload["results"].items():
         summary = record["summary"]
         print(
             f"{name:24s} "
