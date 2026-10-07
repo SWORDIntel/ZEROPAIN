@@ -96,3 +96,32 @@ def test_nop_direction_is_not_forced():
         simulate(nop, config=FAST, params=negative).mean_switch_probability
         > simulate(meth, config=FAST, params=negative).mean_switch_probability
     )
+\n\nfrom research.dissociation.factorial import estimate_effects, generate_design
+
+
+def test_factorial_design_size_and_interaction_math():
+    design = generate_design(("meth", "nmda_antagonism"), high=0.5)
+    assert len(design) == 4
+
+    # Synthetic algebra check independent of the pharmacology model:
+    # y = 1*meth + 2*nmda + 3*meth*nmda
+    records = []
+    for indicators, _ in design:
+        m = indicators["meth"]
+        n = indicators["nmda_antagonism"]
+        y = 1.0 * m + 2.0 * n + 3.0 * m * n
+        metrics = {
+            "mean_switch_probability": y,
+            "mean_persistence_steps": y,
+            "executive_stability": y,
+            "cortical_integration": y,
+            "internal_coordination": y,
+            "information_consistency": y,
+            "salience_load": y,
+        }
+        records.append({"indicators": indicators, "metrics": metrics})
+
+    effects = estimate_effects(records, ("meth", "nmda_antagonism"))
+    assert effects["pairwise_interactions"]["meth x nmda_antagonism"][
+        "mean_switch_probability"
+    ] == 3.0
