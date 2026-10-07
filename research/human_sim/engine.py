@@ -19,6 +19,7 @@ from research.human_sim.adaptation import (
     AdaptationState,
     step_adaptation,
 )
+from research.human_sim.disposition import CompoundDisposition
 from research.human_sim.pbpk import PBPKTrace, simulate_pbpk
 from research.human_sim.physiology import Physiology
 from research.human_sim.receptors import ReceptorState, ReceptorTarget, receptor_state
@@ -92,6 +93,7 @@ class HumanSimResult:
 
 def simulate_human_chain(
     physiology: Physiology,
+    disposition: CompoundDisposition,
     targets: Mapping[str, ReceptorTarget],
     *,
     duration_h: float,
@@ -109,6 +111,7 @@ def simulate_human_chain(
 
     pbpk = simulate_pbpk(
         physiology,
+        disposition,
         duration_h=duration_h,
         dt_h=dt_h,
         initial_central_amount=initial_central_amount,
