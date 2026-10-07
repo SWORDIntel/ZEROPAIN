@@ -9,7 +9,6 @@ from research.human_sim.competition import CompetitionState, LigandInteraction, 
 from research.human_sim.disposition import CompoundDisposition
 from research.human_sim.pbpk import PBPKState, PBPKTrace, simulate_pbpk
 from research.human_sim.physiology import Physiology, TissueSpec
-from research.human_sim.compound_pk import CompoundPKSpec
 from research.human_sim.multiligand_engine import LigandSpec, MultiLigandResult, simulate_multiligand_chain
 from research.human_sim.population import VirtualIndividual
 from research.human_sim.receptors import ReceptorTarget, receptor_state
@@ -17,7 +16,6 @@ from research.human_sim.receptors import ReceptorTarget, receptor_state
 __all__ = [
     "Physiology",
     "TissueSpec",
-    "CompoundPKSpec",
     "CompoundDisposition",
     "LigandInteraction",
     "CompetitionState",
