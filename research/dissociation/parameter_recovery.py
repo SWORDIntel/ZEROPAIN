@@ -68,6 +68,9 @@ class RecoveryConfig:
     passes: int = 4
     shrink: float = 0.45
     metric_floor: float = 0.04
+    target_replicates: int = 3
+    fit_replicates: int = 3
+    fit_seed_offset: int = 1000
 
 
 @dataclass
@@ -110,17 +113,54 @@ def _metric_scales(target: np.ndarray, floor: float) -> np.ndarray:
     )
 
 
+def _replicate_configs(
+    population: PopulationConfig,
+    count: int,
+    *,
+    seed_offset: int = 0,
+) -> list[PopulationConfig]:
+    if count < 1:
+        raise ValueError("replicate count must be >= 1")
+    return [
+        PopulationConfig(
+            n_subjects=population.n_subjects,
+            steps=population.steps,
+            seed=population.seed + seed_offset + idx,
+        )
+        for idx in range(count)
+    ]
+
+
+def _mean_condition_matrix(
+    params: ModelParameters,
+    conditions: Dict[str, MechanismInput],
+    configs: Sequence[PopulationConfig],
+    *,
+    metrics: Sequence[str] = FIT_METRICS,
+) -> np.ndarray:
+    matrices = []
+    order = list(conditions)
+    for config in configs:
+        summaries = compare_conditions(conditions, config=config, params=params)
+        matrices.append(_summary_matrix(summaries, order, metrics))
+    return np.mean(np.stack(matrices, axis=0), axis=0)
+
+
 def objective(
     params: ModelParameters,
     target: np.ndarray,
     conditions: Dict[str, MechanismInput],
-    config: PopulationConfig,
+    configs: Sequence[PopulationConfig],
     *,
     metric_scales: np.ndarray,
     metrics: Sequence[str] = FIT_METRICS,
 ) -> float:
-    predicted = compare_conditions(conditions, config=config, params=params)
-    matrix = _summary_matrix(predicted, list(conditions), metrics)
+    matrix = _mean_condition_matrix(
+        params,
+        conditions,
+        configs,
+        metrics=metrics,
+    )
     residual = (matrix - target) / metric_scales[None, :]
     return float(np.mean(residual * residual))
 
@@ -141,6 +181,8 @@ def recover_parameters(
         raise ValueError("passes must be >= 1")
     if not 0.0 < recovery.shrink < 1.0:
         raise ValueError("shrink must be in (0, 1)")
+    if recovery.target_replicates < 1 or recovery.fit_replicates < 1:
+        raise ValueError("replicate counts must be >= 1")
 
     names = list(parameter_bounds)
     for name, (low, high) in parameter_bounds.items():
@@ -149,12 +191,25 @@ def recover_parameters(
         if low >= high:
             raise ValueError(f"invalid bounds for {name}: {(low, high)}")
 
-    target_summaries = compare_conditions(
-        fit_conditions,
-        config=population,
-        params=true_params,
+    # Generate target data and fit simulations from different random seeds by default.
+    # This prevents the recovery benchmark from becoming artificially easy because
+    # stochastic process noise cancels between truth and candidate evaluations.
+    target_configs = _replicate_configs(
+        population,
+        recovery.target_replicates,
+        seed_offset=0,
     )
-    target = _summary_matrix(target_summaries, list(fit_conditions))
+    fit_configs = _replicate_configs(
+        population,
+        recovery.fit_replicates,
+        seed_offset=recovery.fit_seed_offset,
+    )
+
+    target = _mean_condition_matrix(
+        true_params,
+        fit_conditions,
+        target_configs,
+    )
     scales = _metric_scales(target, recovery.metric_floor)
 
     # Start from the center of each bound while retaining defaults for parameters
@@ -177,7 +232,7 @@ def recover_parameters(
                     candidate,
                     target,
                     fit_conditions,
-                    population,
+                    fit_configs,
                     metric_scales=scales,
                 )
                 scored.append((score, float(value)))
@@ -218,22 +273,20 @@ def recover_parameters(
         estimate,
         target,
         fit_conditions,
-        population,
+        fit_configs,
         metric_scales=scales,
     )
 
-    holdout_truth = compare_conditions(
+    holdout_target = _mean_condition_matrix(
+        true_params,
         HOLDOUT_CONDITIONS,
-        config=population,
-        params=true_params,
+        target_configs,
     )
-    holdout_pred = compare_conditions(
+    holdout_matrix = _mean_condition_matrix(
+        estimate,
         HOLDOUT_CONDITIONS,
-        config=population,
-        params=estimate,
+        fit_configs,
     )
-    holdout_target = _summary_matrix(holdout_truth, list(HOLDOUT_CONDITIONS))
-    holdout_matrix = _summary_matrix(holdout_pred, list(HOLDOUT_CONDITIONS))
     holdout_scales = _metric_scales(holdout_target, recovery.metric_floor)
     holdout_residual = (holdout_matrix - holdout_target) / holdout_scales[None, :]
     holdout_score = float(np.mean(holdout_residual * holdout_residual))
@@ -247,6 +300,9 @@ def recover_parameters(
         * recovery.grid_points
         * len(parameter_bounds),
         "last_coordinate_score": score_history[-1] if score_history else fit_score,
+        "target_replicates": recovery.target_replicates,
+        "fit_replicates": recovery.fit_replicates,
+        "fit_seed_offset": recovery.fit_seed_offset,
     }
     return estimate, recovered, diagnostics
 
@@ -259,6 +315,9 @@ def _parser() -> argparse.ArgumentParser:
     p.add_argument("--grid-points", type=int, default=7)
     p.add_argument("--passes", type=int, default=4)
     p.add_argument("--shrink", type=float, default=0.45)
+    p.add_argument("--target-replicates", type=int, default=3)
+    p.add_argument("--fit-replicates", type=int, default=3)
+    p.add_argument("--fit-seed-offset", type=int, default=1000)
     p.add_argument(
         "--parameters",
         nargs="+",
@@ -283,6 +342,9 @@ def main() -> int:
         grid_points=args.grid_points,
         passes=args.passes,
         shrink=args.shrink,
+        target_replicates=args.target_replicates,
+        fit_replicates=args.fit_replicates,
+        fit_seed_offset=args.fit_seed_offset,
     )
     bounds = {name: DEFAULT_BOUNDS[name] for name in args.parameters}
     true_params = ModelParameters()
