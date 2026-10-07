@@ -788,3 +788,38 @@ If no  -> receptor-labelled model earns further testing, not acceptance.
 
 The next bridge to real data is a consented observational CSV schema with no required
 drug exposure fields, followed by the same blocked-time null-model comparison.
+
+
+## Consented observational CSV bridge
+
+`observational_csv.py` runs the same blocked-time comparison against a user-supplied
+CSV without requiring any receptor/drug annotations.
+
+Schema:
+
+- [OBSERVATIONAL_DATA_SCHEMA.md](OBSERVATIONAL_DATA_SCHEMA.md)
+- [observer-only CSV template](examples/observational_template.csv)
+
+Example:
+
+```bash
+python -m research.dissociation.observational_csv observations.csv \
+  --test-fraction 0.25 \
+  --output runs/dissociation_observational_csv.json
+```
+
+The importer:
+
+- accepts direct rates or raw counts/trials;
+- derives within-subject lagged observations;
+- derives a normalized time trend when one is absent;
+- preserves missing outcomes rather than turning them into zeros;
+- drops predictor-incomplete rows only for models requiring those predictors;
+- rejects duplicate subject/session records;
+- uses each subject's final sessions as held-out test data;
+- reports which context and mechanism annotations actually exist.
+
+If mechanism annotations are absent, models that require them are **not run**. This
+prevents "no exposure data" from being silently interpreted as "zero receptor effect."
+
+The default template intentionally contains **no mechanism columns**.
