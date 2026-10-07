@@ -123,10 +123,15 @@ class BeliefNetworkSummary:
     belief_consistency: float
     truth_accuracy: float
     false_consensus_rate: float
+    communication_opportunities: int
+    delivered_reports: int
+    communication_opportunities_per_step: float
     withholding_events: int
     withholding_rate: float
+    withholding_events_per_step: float
     false_report_events: int
     false_report_rate: float
+    false_report_events_per_step: float
     sync_expected: int
     sync_completed: int
     cooperative_steps: int
@@ -588,10 +593,15 @@ def simulate_belief_network(
         belief_consistency=final_consistency,
         truth_accuracy=final_accuracy,
         false_consensus_rate=final_false_consensus,
+        communication_opportunities=communication_opportunities,
+        delivered_reports=max(0, communication_opportunities - withholding_events),
+        communication_opportunities_per_step=communication_opportunities / config.steps,
         withholding_events=withholding_events,
         withholding_rate=withholding_events / max(1, communication_opportunities),
+        withholding_events_per_step=withholding_events / config.steps,
         false_report_events=false_report_events,
         false_report_rate=false_report_events / max(1, communication_opportunities),
+        false_report_events_per_step=false_report_events / config.steps,
         sync_expected=sync_expected,
         sync_completed=sync_completed,
         cooperative_steps=regime_counts[CoordinationRegime.COOPERATIVE],
