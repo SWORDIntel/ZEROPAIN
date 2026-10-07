@@ -28,6 +28,7 @@ from research.dissociation.identifiability import finite_difference_jacobian
 from research.dissociation.model import MechanismInput, ModelParameters, PopulationConfig
 from research.dissociation.parameter_recovery import (
     DEFAULT_BOUNDS, FIT_CONDITIONS, FIT_METRICS,
+    RecoveryConfig, recover_parameters,
 )
 
 
@@ -326,6 +327,10 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument("--max-condition", type=float, default=6.0)
     p.add_argument("--min-information-fraction", type=float, default=0.35)
     p.add_argument("--budget", type=int, default=0)
+    p.add_argument("--recovery-check", action="store_true",
+                   help="Fit hidden coefficients from the selected conditions only.")
+    p.add_argument("--recovery-grid-points", type=int, default=5)
+    p.add_argument("--recovery-passes", type=int, default=2)
     p.add_argument("--parameters", nargs="+", default=list(DEFAULT_BOUNDS),
                    choices=list(DEFAULT_BOUNDS))
     p.add_argument("--output", default="runs/dissociation_experiment_design.json")
@@ -357,6 +362,34 @@ def main() -> int:
         )
         if plan["status"] == "feasible" else []
     )
+    recovery_audit = None
+    if plan["status"] == "feasible" and args.recovery_check:
+        # Uses the selected design only, with independent target/fitter seeds;
+        # held-out combination conditions remain out of the fit.
+        selected_conditions = {name: candidates[name] for name in plan["selected"]}
+        estimate, recovered, diagnostics = recover_parameters(
+            params,
+            bounds,
+            population=population,
+            recovery=RecoveryConfig(
+                grid_points=args.recovery_grid_points,
+                passes=args.recovery_passes,
+                target_replicates=args.replicates,
+                fit_replicates=args.replicates,
+                fit_seed_offset=1500,
+            ),
+            fit_conditions=selected_conditions,
+        )
+        recovery_audit = {
+            "fit_conditions": list(selected_conditions),
+            "estimated": {name: getattr(estimate, name) for name in bounds},
+            "parameter_errors": [row.to_dict() for row in recovered],
+            "diagnostics": diagnostics,
+        }
+
+    validation_passed = plan["status"] == "feasible" and all(
+        result["passed"] for result in validations
+    )
     payload = {
         "schema_version": 1,
         "warning": "Synthetic dimensionless model conditions, NOT human exposures or doses.",
@@ -369,6 +402,8 @@ def main() -> int:
         "candidates": {name: asdict(value) for name, value in candidates.items()},
         "plan": plan,
         "independent_seed_validation": validations,
+        "validation_passed": validation_passed,
+        "selected_design_recovery": recovery_audit,
     }
     out = Path(args.output)
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -386,7 +421,13 @@ def main() -> int:
             print(f"validation seed={val['seed']} passed={val['passed']} "
                   f"rank={val['selected']['numerical_rank']} "
                   f"condition={val['selected']['condition_number']:.3f}")
-    return 0 if plan["status"] == "feasible" else 2
+        if recovery_audit is not None:
+            d = recovery_audit["diagnostics"]
+            print(f"selected_recovery mean_rel_err={d['mean_relative_error']:.3f} "
+                  f"holdout_objective={d['holdout_objective']:.5f}")
+    if not validation_passed:
+        print("FAIL: chosen design was infeasible or failed independent-seed checks")
+    return 0 if validation_passed else 2
 
 
 if __name__ == "__main__":
