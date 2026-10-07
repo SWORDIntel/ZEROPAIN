@@ -14,6 +14,7 @@ from research.dissociation.observable_model import (
 )
 from research.dissociation.observable_design import (
     expected_matrix, observable_jacobian, recover_from_observations,
+    sampled_matrix,
     run_observable_design,
 )
 from research.dissociation.experimental_design import DesignConstraints
@@ -127,3 +128,28 @@ def test_panel_ablation_reports_failures_without_making_up_rank():
         if record["plan"]["status"] == "feasible":
             assert record["plan"]["selected"]
             assert "validation_passed" in record
+
+
+
+def test_condition_keyed_noise_is_paired_across_subsets():
+    conditions = {
+        "baseline": MechanismInput(),
+        "meth": MechanismInput(meth=0.55),
+        "nmda": MechanismInput(nmda_antagonism=0.50),
+    }
+    selected = {
+        "nmda": conditions["nmda"],
+        "baseline": conditions["baseline"],
+    }
+    pop = [PopulationConfig(n_subjects=80, steps=15, seed=17)]
+    config = MeasurementConfig(missing_probability=0.2)
+    full = sampled_matrix(
+        ModelParameters(), conditions, pop, panel="multimodal",
+        measurement=config, observation_seed=31,
+    )
+    reduced = sampled_matrix(
+        ModelParameters(), selected, pop, panel="multimodal",
+        measurement=config, observation_seed=31,
+    )
+    assert np.allclose(reduced[0], full[2], equal_nan=True)
+    assert np.allclose(reduced[1], full[0], equal_nan=True)
