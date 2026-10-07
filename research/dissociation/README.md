@@ -846,3 +846,28 @@ It records:
 The executable exits non-zero when its **synthetic benchmark-health** checks fail.
 Those gates only test whether the benchmark can recover the truth family it generated
 itself. They are not biological significance thresholds.
+
+
+### Observational mechanism-label permutation audit
+
+When a real observational CSV contains optional mechanism annotations,
+`observational_permutation.py` asks whether those annotations improve held-out
+prediction beyond what would be expected when their temporal alignment is broken.
+
+```bash
+python -m research.dissociation.observational_permutation observations.csv \
+  --permutations 500 \
+  --output runs/dissociation_observational_permutation.json
+```
+
+The default randomization uses a **joint circular shift within each subject**. All
+mechanism annotation columns move together, preserving their within-session
+relationships and each subject's marginal annotation distribution while breaking the
+original alignment with outcomes.
+
+The report compares the observed mechanism-model gain with the randomization
+distribution and returns an empirical upper-tail probability.
+
+This remains an association diagnostic. It does not remove time-varying confounding,
+measurement error, reverse causation or selection effects and therefore must not be
+reported as proof of receptor causality.
