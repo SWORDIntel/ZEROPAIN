@@ -331,6 +331,7 @@ receptor direction, affinity/efficacy, assay context, and safety assertions.
 - [Legacy corpus research workflow](doc/UNHOLY_OPIOID_CORPUS_RESEARCH.md)
 - [Opioid/NOP/NMDA dissociative-state hypotheses](doc/DISSOCIATION_OPIOID_GLUTAMATE_HYPOTHESES.md)
 - [Experimental dissociation simulations](research/dissociation/README.md) — **separate research track**, dimensionless inputs only
+  - scalar gating, discrete state graph, state-specific memory/trust network, belief-integrity ledger, synthetic physiology observation layer
 - Claim audit: `python scripts/audit_legacy_opioids.py --only-flagged`
 
 The audit specifically prioritizes mixed/partial MOR pharmacology, KOR/dynorphin,
