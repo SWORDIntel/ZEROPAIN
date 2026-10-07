@@ -98,7 +98,7 @@ def test_strict_mode_raises_after_logging(tmp_path, monkeypatch):
     monkeypatch.setenv("ZEROPAIN_VERIFY_STRICT", "1")
     with pytest.raises(RuntimeError, match="syndrome"):
         verify(
-            {"rate": 2.0},
+            {"probability": 2.0},
             label="test.strict",
             force=True,
         )
@@ -108,3 +108,17 @@ def test_strict_mode_raises_after_logging(tmp_path, monkeypatch):
 def test_disabled_returns_none(monkeypatch):
     monkeypatch.delenv("ZEROPAIN_VERIFY", raising=False)
     assert verify({"x": 1}, label="off") is None
+
+
+
+def test_storage_failure_uses_storage_bit(tmp_path, monkeypatch):
+    monkeypatch.setenv("ZEROPAIN_VERIFY_LOG", str(tmp_path / "audit.jsonl"))
+    record = verify(
+        {"value": 1},
+        label="test.storage",
+        storage=lambda value: (False, "disk mismatch"),
+        force=True,
+    )
+    assert record is not None
+    assert record.syndrome & int(CheckBit.STORAGE)
+    assert not (record.syndrome & int(CheckBit.INDEPENDENT))
