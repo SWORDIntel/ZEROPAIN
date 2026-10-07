@@ -24,6 +24,17 @@ class EvidenceSource:
 
 
 SOURCE_REGISTRY: Mapping[str, EvidenceSource] = {
+    "synthetic_fixture": EvidenceSource(
+        source_id="synthetic_fixture",
+        title="Bundled synthetic HumanSim population fixture",
+        kind="software_fixture",
+        url="",
+        citation="Repository test fixture only; not an external population dataset.",
+        notes=(
+            "Column-compatible with supported population imports but numerically "
+            "fabricated for tests and CI."
+        ),
+    ),
     "httk_population": EvidenceSource(
         source_id="httk_population",
         title="httk virtual population generator",
