@@ -18,7 +18,11 @@ import numpy as np
 
 from research.human_sim.disposition import synthetic_reference_disposition
 from research.human_sim.engine import simulate_human_chain, synthetic_target_panel
-from research.human_sim.population import load_httkpop_csv, summarize_population
+from research.human_sim.population import (
+    detect_population_format,
+    load_population_csv,
+    summarize_population,
+)
 from research.human_sim.provenance import sources_dict
 from zeropain.verified_io import write_json
 
@@ -26,6 +30,7 @@ from zeropain.verified_io import write_json
 def _parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("population_csv")
+    p.add_argument("--format", choices=("auto", "httk", "pksim"), default="auto")
     p.add_argument("--limit", type=int, default=0)
     p.add_argument("--duration-h", type=float, default=6.0)
     p.add_argument("--dt-h", type=float, default=0.05)
@@ -49,7 +54,8 @@ def _q(values: list[float]) -> dict[str, float]:
 
 def build_payload(args: argparse.Namespace) -> dict:
     path = Path(args.population_csv)
-    individuals = load_httkpop_csv(path)
+    selected_format = detect_population_format(path) if args.format == "auto" else args.format
+    individuals = load_population_csv(path, format=selected_format)
     if args.limit > 0:
         individuals = individuals[: args.limit]
     if not individuals:
@@ -81,6 +87,10 @@ def build_payload(args: argparse.Namespace) -> dict:
 
     digest = hashlib.sha256(path.read_bytes()).hexdigest()
     population_summary = summarize_population(individuals)
+    source_id = "httk_population" if selected_format == "httk" else "pksim_population"
+    evidence_ids = [source_id]
+    if selected_format == "httk":
+        evidence_ids.append("httk_tissue")
 
     return {
         "schema_version": 1,
@@ -93,8 +103,9 @@ def build_payload(args: argparse.Namespace) -> dict:
         "population_source": {
             "input_path": str(path),
             "sha256": digest,
-            "source_id": "httk_population",
-            "evidence": sources_dict(["httk_population", "httk_tissue"]),
+            "format": selected_format,
+            "source_id": source_id,
+            "evidence": sources_dict(evidence_ids),
             "selected_individuals": len(individuals),
         },
         "population_physiology_summary": population_summary.to_dict(),
