@@ -1,0 +1,7 @@
+subject_id,session_index,observer_switch_count,switch_observation_checks,recall_successes,recall_trials,plan_agreement_successes,plan_trials,stress_load,sleep_wake_irregularity,social_conflict_load,wearable_arousal_index,eeg_connectivity_index
+P001,0,2,20,8,10,8,10,0.25,0.15,0.10,,
+P001,1,3,20,7,10,7,10,0.40,0.30,0.20,,
+P001,2,1,20,9,10,8,10,0.20,0.10,0.08,,
+P002,0,1,20,9,10,9,10,0.18,0.12,0.09,,
+P002,1,2,20,8,10,8,10,0.30,0.20,0.15,,
+P002,2,2,20,8,10,7,10,0.35,0.25,0.18,,
