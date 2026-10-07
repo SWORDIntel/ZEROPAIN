@@ -156,3 +156,34 @@ Useful next additions:
 8. NMDA/E-I and thalamocortical submodel rather than a single integration scalar;
 9. parameter recovery tests to establish whether the model is identifiable;
 10. null models that reproduce switching without opioid involvement.
+
+
+## Factorial interaction analysis
+
+To test whether combinations behave non-additively:
+
+```bash
+python -m research.dissociation.factorial \
+  --subjects 1500 \
+  --steps 120 \
+  --high 0.65 \
+  --output runs/dissociation_factorial.json
+```
+
+This runs a binary factorial design across the selected perturbations and reports:
+
+- marginal main effects;
+- pairwise difference-in-differences interactions;
+- ranked interactions on switching probability and all other synthetic endpoints.
+
+That is the first tool for questions such as:
+
+```text
+Is meth + NMDA disruption worse than the sum of each alone?
+Does KOR antagonism specifically modify the meth effect?
+Does MOR partial agonism only shift baseline, or does it interact with meth?
+Does wake-anchor disruption amplify meth independently of NMDA integration?
+```
+
+Interaction terms are model outputs, not evidence of biological synergy until the model
+is fitted to real observations.
