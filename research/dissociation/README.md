@@ -227,3 +227,51 @@ This is still a toy state graph, **not a claim that DID literally implements thi
 algorithm**. Its purpose is to turn observations such as "another state can take over
 when one is exhausted" and "missed internal meetings preceded information divergence"
 into variables that can be tested and falsified.
+
+
+## State-specific memory/trust network
+
+The third layer moves beyond a single coordination scalar and gives each synthetic
+state its own information access plus pairwise trust relationships:
+
+```bash
+python -m research.dissociation.run_state_network \
+  --states 4 \
+  --steps 480 \
+  --max-coconscious 3 \
+  --sync-interval 96 \
+  --trace \
+  --output runs/dissociation_state_network.json
+```
+
+It adds:
+
+- **co-conscious/blended occupancy**: more than one state can be concurrently accessible;
+- **pairwise trust matrix**: information-sharing propensity differs by state pair;
+- **state-specific event memory**: each state can know different portions of the event stream;
+- **withholding events**: emerge probabilistically when pairwise trust falls below a threshold;
+- **explicit timeline events**: stress, external events, waking synchronization and manual sync;
+- **fatigue-driven handoff**: current executive state loses energy while inactive states recover;
+- **memory divergence**: directly measured across states rather than represented by one scalar;
+- **trace output**: executive state, co-conscious set, mean trust, memory consistency and
+  withholding events at every step.
+
+The waking event remains separate from sleep duration. A missed waking synchronization
+can therefore reduce information convergence without asserting that generic insomnia is
+the causal mechanism.
+
+The model does **not** declare a state deceptive or adversarial by identity. Withholding
+is generated from the current network state (principally low trust), so the same
+synthetic state can behave cooperatively in one run and withhold information in another.
+
+### Layer progression
+
+```text
+scalar gating model
+    -> discrete executive-state graph
+    -> state-specific memory/trust network
+```
+
+This gives us increasingly expressive models while retaining simpler null models for
+comparison. A more complex model only earns its keep if it predicts observations better
+than the lower layers.
