@@ -295,10 +295,19 @@ def verify(
     append_record(record)
 
     if syndrome and strict_enabled():
-        failed = [check.name for check in checks if check.enabled and not check.passed]
+        failed_checks = [
+            check for check in checks if check.enabled and not check.passed
+        ]
+        failed = [check.name for check in failed_checks]
+        details = " | ".join(
+            f"{check.name}: {check.detail}"
+            for check in failed_checks
+            if check.detail
+        )
+        suffix = f"; details={details}" if details else ""
         raise RuntimeError(
             f"shadow verification failed for {label}: syndrome=0x{syndrome:02x}; "
-            f"checks={','.join(failed)}"
+            f"checks={','.join(failed)}{suffix}"
         )
     return record
 
