@@ -67,6 +67,7 @@ jobs:
 
           python -m research.human_sim.run_external_disposition \
             research/human_sim/examples/external_partition_synthetic_fixture.csv \
+            --transporter-csv research/human_sim/examples/transporter_synthetic_fixture.csv \
             --label synthetic_external \
             --fu-plasma 0.2 \
             --fu-brain 0.1 \
