@@ -237,7 +237,24 @@ def simulate_pbpk(
 
         liver = tissues.get("liver")
         if liver is not None and disposition.hepatic_clearance_l_per_h > 0:
+            # Backward-compatible legacy tissue-concentration clearance.
             rate_h = disposition.hepatic_clearance_l_per_h / liver.volume_l
+            tissue_state["liver"], removed = _clear_amount(
+                tissue_state["liver"], rate_h, dt
+            )
+            eliminated += removed
+
+        if (
+            liver is not None
+            and disposition.hepatic_intrinsic_unbound_clearance_l_per_h > 0
+        ):
+            # Mechanistic tissue-side metabolism:
+            # rate = CLint,u * fu_liver * C_liver,total.
+            effective_clearance = (
+                disposition.hepatic_intrinsic_unbound_clearance_l_per_h
+                * float(disposition.liver_unbound_fraction)
+            )
+            rate_h = effective_clearance / liver.volume_l
             tissue_state["liver"], removed = _clear_amount(
                 tissue_state["liver"], rate_h, dt
             )
@@ -245,10 +262,26 @@ def simulate_pbpk(
 
         kidney = tissues.get("kidney")
         if kidney is not None and disposition.renal_clearance_l_per_h > 0:
+            # Backward-compatible legacy tissue-concentration clearance.
             rate_h = disposition.renal_clearance_l_per_h / kidney.volume_l
             tissue_state["kidney"], removed = _clear_amount(
                 tissue_state["kidney"], rate_h, dt
             )
+            eliminated += removed
+
+        if disposition.renal_gfr_l_per_h > 0:
+            # Glomerular filtration acts on unbound plasma concentration. Central
+            # concentration is treated as whole blood, so:
+            # Cu,plasma = Cblood * fu_plasma / (Cblood/Cplasma).
+            fu_blood_equivalent = (
+                disposition.plasma_unbound_fraction
+                / disposition.blood_to_plasma_ratio
+            )
+            filtration_clearance = (
+                disposition.renal_gfr_l_per_h * fu_blood_equivalent
+            )
+            rate_h = filtration_clearance / physiology.central_volume_l
+            central, removed = _clear_amount(central, rate_h, dt)
             eliminated += removed
 
         central, tissue_state = _exchange_sweep(
