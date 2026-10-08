@@ -87,3 +87,41 @@ def test_reference_comparison_detects_deliberately_wrong_trace():
     )
     bad = compare_to_reference(tampered, reference)
     assert bad.max_metric > baseline.max_metric
+
+
+
+def test_primary_and_reference_agree_with_intrinsic_liver_and_gfr_elimination():
+    from research.human_sim.disposition import CompoundDisposition
+
+    physiology = synthetic_reference_physiology()
+    base = synthetic_reference_disposition()
+    disposition = CompoundDisposition(
+        label="mechanistic_clearance_reference_test",
+        tissue_partition_coefficients=dict(base.tissue_partition_coefficients),
+        plasma_unbound_fraction=0.25,
+        brain_unbound_fraction=base.brain_unbound_fraction,
+        blood_to_plasma_ratio=1.2,
+        hepatic_intrinsic_unbound_clearance_l_per_h=12.0,
+        liver_unbound_fraction=0.08,
+        renal_gfr_l_per_h=7.0,
+    )
+
+    primary = simulate_pbpk(
+        physiology,
+        disposition,
+        duration_h=2.0,
+        dt_h=0.01,
+        initial_central_amount=1.0,
+    )
+    reference = simulate_pbpk_reference(
+        physiology,
+        disposition,
+        duration_h=2.0,
+        output_dt_h=0.01,
+        substeps=25,
+        initial_central_amount=1.0,
+    )
+    comparison = compare_to_reference(primary, reference)
+    assert comparison.max_metric < 0.05, comparison.to_dict()
+    assert primary.eliminated_amount[-1] > 0
+    assert reference.eliminated_amount[-1] > 0
