@@ -30,6 +30,14 @@ def _parser() -> argparse.ArgumentParser:
     p.add_argument("--blood-to-plasma", type=float, default=1.0)
     p.add_argument("--kp-uu-brain", type=float)
     p.add_argument(
+        "--fu-liver",
+        type=float,
+        help=(
+            "Unbound fraction in liver tissue. Required before intrinsic hepatic "
+            "clearance is allowed to drive the PBPK liver elimination operator."
+        ),
+    )
+    p.add_argument(
         "--intrinsic-hepatic-clearance-lph",
         type=float,
         help="Whole-liver intrinsic clearance in L/h; diagnostic only.",
@@ -59,6 +67,7 @@ def build_payload(args: argparse.Namespace) -> dict:
         kp_uu_brain=args.kp_uu_brain,
         intrinsic_hepatic_clearance_l_per_h=args.intrinsic_hepatic_clearance_lph,
         gfr_l_per_h=args.gfr_lph,
+        fu_liver=args.fu_liver,
     )
     result = build_external_disposition(physiology, inputs)
 
@@ -90,6 +99,7 @@ def build_payload(args: argparse.Namespace) -> dict:
             "kp_uu_brain": args.kp_uu_brain,
             "intrinsic_hepatic_clearance_lph": args.intrinsic_hepatic_clearance_lph,
             "gfr_lph": args.gfr_lph,
+            "fu_liver": args.fu_liver,
         },
         "result": result.to_dict(),
         "evidence": sources_dict(evidence_ids),
@@ -109,6 +119,16 @@ def _relations(payload: dict):
         failures.append("reference hepatic clearance leaked into PBPK tissue field")
     if disposition["renal_clearance_l_per_h"] != 0.0:
         failures.append("reference renal clearance leaked into PBPK tissue field")
+    if (
+        payload["input"]["gfr_lph"] is not None
+        and disposition["renal_gfr_l_per_h"] != payload["input"]["gfr_lph"]
+    ):
+        failures.append("GFR did not reach dedicated PBPK filtration field")
+    if (
+        payload["input"]["fu_liver"] is None
+        and disposition["hepatic_intrinsic_unbound_clearance_l_per_h"] != 0.0
+    ):
+        failures.append("intrinsic hepatic clearance activated without fu_liver")
 
     hepatic = result["diagnostics"]["well_stirred_hepatic_reference"]
     if hepatic is not None and not 0.0 <= hepatic["extraction_ratio"] <= 1.0:
@@ -152,8 +172,13 @@ def main() -> int:
     if diagnostics["filtration_only_renal_reference"] is not None:
         renal = diagnostics["filtration_only_renal_reference"]
         print(
-            f"filtration_reference={renal['clearance_l_per_h']:.6g} L/h"
+            f"filtration_reference={renal['clearance_l_per_h']:.6g} L/h "
+            f"pbpk_gfr_active={diagnostics['renal_filtration_active_in_pbpk']}"
         )
+    print(
+        "hepatic_intrinsic_pbpk_active="
+        f"{diagnostics['intrinsic_hepatic_active_in_pbpk']}"
+    )
     return 0
 
 
