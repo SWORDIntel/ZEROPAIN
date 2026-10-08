@@ -59,6 +59,7 @@ class TransporterProcess:
     source_unbound_fraction: float | None = None
     source_id: str = ""
     transporter_family: str = ""
+    interaction_group: str = ""
 
     def validate(self) -> None:
         if not self.name:
