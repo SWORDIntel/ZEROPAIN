@@ -68,10 +68,34 @@ def _derivative(
             cleared = disposition.hepatic_clearance_l_per_h * tissue_concentration
             d[1 + index] -= cleared
             d[-1] += cleared
-        elif name == "kidney" and disposition.renal_clearance_l_per_h > 0:
+
+        if (
+            name == "liver"
+            and disposition.hepatic_intrinsic_unbound_clearance_l_per_h > 0
+        ):
+            cleared = (
+                disposition.hepatic_intrinsic_unbound_clearance_l_per_h
+                * float(disposition.liver_unbound_fraction)
+                * tissue_concentration
+            )
+            d[1 + index] -= cleared
+            d[-1] += cleared
+
+        if name == "kidney" and disposition.renal_clearance_l_per_h > 0:
             cleared = disposition.renal_clearance_l_per_h * tissue_concentration
             d[1 + index] -= cleared
             d[-1] += cleared
+
+    if disposition.renal_gfr_l_per_h > 0:
+        central_concentration = central / physiology.central_volume_l
+        unbound_plasma_concentration = (
+            central_concentration
+            * disposition.plasma_unbound_fraction
+            / disposition.blood_to_plasma_ratio
+        )
+        filtered = disposition.renal_gfr_l_per_h * unbound_plasma_concentration
+        d[0] -= filtered
+        d[-1] += filtered
 
     if input_rate is not None:
         rate = float(input_rate(t))
