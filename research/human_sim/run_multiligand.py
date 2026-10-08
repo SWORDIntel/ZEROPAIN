@@ -181,6 +181,12 @@ def build_payload(args: argparse.Namespace) -> dict:
                 for trace in transport_inhibited.pbpk_by_ligand.values()
             )
         ),
+        "victim_central_max_abs_difference": float(
+            abs(
+                transport_inhibited.pbpk_by_ligand["victim"].central_amount
+                - transport_control.pbpk_by_ligand["victim"].central_amount
+            ).max()
+        ),
     }
 
     return {
@@ -217,10 +223,7 @@ def _relations(payload: dict):
                 )
 
     ddi = payload["transporter_ddi"]
-    if abs(
-        ddi["inhibited_victim_final_central"]
-        - ddi["control_victim_final_central"]
-    ) < 1e-8:
+    if ddi["victim_central_max_abs_difference"] < 1e-8:
         failures.append(
             "transporter inhibitor failed to change victim central trajectory"
         )
