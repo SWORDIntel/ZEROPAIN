@@ -22,6 +22,7 @@ def _base_inputs():
         partition_basis="tissue_to_unbound_plasma",
         fu_plasma=0.2,
         fu_brain=0.1,
+        fu_liver=0.08,
         blood_to_plasma_ratio=1.2,
         kp_uu_brain=0.5,
         intrinsic_hepatic_clearance_l_per_h=20.0,
@@ -61,6 +62,7 @@ def test_nonzero_uncertainty_produces_variability_but_keeps_bounds():
         },
         fu_plasma_cv=0.15,
         fu_brain_cv=0.10,
+        fu_liver_cv=0.12,
         blood_to_plasma_cv=0.10,
         kp_uu_brain_cv=0.20,
         intrinsic_hepatic_clearance_cv=0.25,
@@ -76,8 +78,11 @@ def test_nonzero_uncertainty_produces_variability_but_keeps_bounds():
     assert len(results) == 200
 
     fu_values = [result.diagnostics["fu_plasma"] for result in results]
+    fu_liver_values = [result.diagnostics["fu_liver"] for result in results]
     assert np.std(fu_values) > 0
+    assert np.std(fu_liver_values) > 0
     assert all(0.0 < value <= 1.0 for value in fu_values)
+    assert all(0.0 < value <= 1.0 for value in fu_liver_values)
 
     for result in results:
         for value in result.disposition.tissue_partition_coefficients.values():
