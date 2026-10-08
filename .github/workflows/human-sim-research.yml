@@ -73,6 +73,7 @@ jobs:
             --blood-to-plasma 1.2 \
             --kp-uu-brain 0.5 \
             --intrinsic-hepatic-clearance-lph 20 \
+            --fu-liver 0.08 \
             --gfr-lph 7.5 \
             --output /tmp/human_sim_external_disposition.json
 
