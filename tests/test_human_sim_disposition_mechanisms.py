@@ -109,6 +109,11 @@ def test_external_builder_normalizes_partition_basis_and_overrides_brain_from_kp
     # Reference clearances must NOT leak into legacy tissue-concentration fields.
     assert disposition.hepatic_clearance_l_per_h == 0.0
     assert disposition.renal_clearance_l_per_h == 0.0
+    assert disposition.hepatic_intrinsic_unbound_clearance_l_per_h == 0.0
+    assert disposition.liver_unbound_fraction is None
+    assert np.isclose(disposition.renal_gfr_l_per_h, 7.5)
+    assert result.diagnostics["intrinsic_hepatic_active_in_pbpk"] is False
+    assert result.diagnostics["renal_filtration_active_in_pbpk"] is True
     assert result.diagnostics["well_stirred_hepatic_reference"] is not None
     assert result.diagnostics["filtration_only_renal_reference"] is not None
 
@@ -134,3 +139,34 @@ def test_invalid_derived_blood_free_fraction_is_rejected():
             fu_plasma=0.9,
             blood_to_plasma_ratio=0.5,
         )
+
+
+
+def test_external_builder_activates_intrinsic_liver_only_with_fu_liver():
+    physiology = synthetic_reference_physiology()
+    inputs = ExternalDispositionInputs(
+        label="synthetic_external_active",
+        tissue_partition_coefficients={
+            "brain": 1.0,
+            "liver": 1.0,
+            "kidney": 1.0,
+            "peripheral": 1.0,
+        },
+        partition_basis="tissue_to_plasma",
+        fu_plasma=0.2,
+        fu_brain=0.1,
+        fu_liver=0.08,
+        blood_to_plasma_ratio=1.2,
+        intrinsic_hepatic_clearance_l_per_h=20.0,
+        source_id="synthetic_fixture",
+        method="synthetic",
+    )
+    result = build_external_disposition(physiology, inputs)
+    disposition = result.disposition
+
+    assert np.isclose(
+        disposition.hepatic_intrinsic_unbound_clearance_l_per_h,
+        20.0,
+    )
+    assert np.isclose(disposition.liver_unbound_fraction, 0.08)
+    assert result.diagnostics["intrinsic_hepatic_active_in_pbpk"] is True
