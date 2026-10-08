@@ -175,12 +175,15 @@ def build_external_disposition(
         "normalized_partition_basis": PartitionBasis.TISSUE_TO_PLASMA.value,
         "fu_plasma": inputs.fu_plasma,
         "fu_brain": inputs.fu_brain,
+        "fu_liver": inputs.fu_liver,
         "blood_to_plasma_ratio": inputs.blood_to_plasma_ratio,
         "derived_fu_blood": fu_blood,
         "kp_uu_brain": inputs.kp_uu_brain,
         "brain_kp_override": brain_override,
         "well_stirred_hepatic_reference": hepatic_reference,
         "filtration_only_renal_reference": renal_reference,
+        "intrinsic_hepatic_active_in_pbpk": activate_intrinsic_hepatic,
+        "renal_filtration_active_in_pbpk": inputs.gfr_l_per_h is not None,
         "clearance_basis_warning": (
             "Well-stirred hepatic clearance remains diagnostic. Intrinsic hepatic "
             "clearance drives PBPK only when fu_liver is explicitly supplied. "
