@@ -17,6 +17,7 @@ from research.human_sim.external_disposition import (
 )
 from research.human_sim.partition_import import load_partition_csv
 from research.human_sim.reference_physiology import adult_male_reference_composite
+from research.human_sim.transporter_import import load_transporter_csv
 from research.human_sim.provenance import sources_dict
 from zeropain.verified_io import write_json
 
@@ -24,6 +25,11 @@ from zeropain.verified_io import write_json
 def _parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("partition_csv")
+    p.add_argument(
+        "--transporter-csv",
+        default="",
+        help="Optional provenance-tagged transporter kinetic table.",
+    )
     p.add_argument("--label", default="external_compound")
     p.add_argument("--fu-plasma", type=float, required=True)
     p.add_argument("--fu-brain", type=float, required=True)
@@ -53,6 +59,11 @@ def _parser() -> argparse.ArgumentParser:
 
 def build_payload(args: argparse.Namespace) -> dict:
     table = load_partition_csv(args.partition_csv)
+    transporters = (
+        load_transporter_csv(args.transporter_csv)
+        if args.transporter_csv
+        else ()
+    )
     physiology = adult_male_reference_composite().physiology
 
     inputs = ExternalDispositionInputs(
@@ -68,6 +79,7 @@ def build_payload(args: argparse.Namespace) -> dict:
         intrinsic_hepatic_clearance_l_per_h=args.intrinsic_hepatic_clearance_lph,
         gfr_l_per_h=args.gfr_lph,
         fu_liver=args.fu_liver,
+        transporter_processes=transporters,
     )
     result = build_external_disposition(physiology, inputs)
 
@@ -80,6 +92,13 @@ def build_payload(args: argparse.Namespace) -> dict:
         evidence_ids.append("httk_schmitt")
     elif table.source_id == "synthetic_fixture":
         evidence_ids.append("synthetic_fixture")
+    if transporters:
+        evidence_ids.extend([
+            "ich_m12_transporters",
+            "giacomini2010_transporters",
+        ])
+        if any(process.source_id == "synthetic_fixture" for process in transporters):
+            evidence_ids.append("synthetic_fixture")
 
     return {
         "schema_version": 1,
@@ -91,6 +110,10 @@ def build_payload(args: argparse.Namespace) -> dict:
         ),
         "physiology": physiology.to_dict(),
         "partition_input": table.to_dict(),
+        "transporter_input": {
+            "path": args.transporter_csv or None,
+            "processes": [process.to_dict() for process in transporters],
+        },
         "input": {
             "label": args.label,
             "fu_plasma": args.fu_plasma,
@@ -119,6 +142,10 @@ def _relations(payload: dict):
         failures.append("reference hepatic clearance leaked into PBPK tissue field")
     if disposition["renal_clearance_l_per_h"] != 0.0:
         failures.append("reference renal clearance leaked into PBPK tissue field")
+    if len(disposition["transporter_processes"]) != len(
+        payload["transporter_input"]["processes"]
+    ):
+        failures.append("transporter process count mismatch")
     if (
         payload["input"]["gfr_lph"] is not None
         and disposition["renal_gfr_l_per_h"] != payload["input"]["gfr_lph"]
@@ -178,6 +205,9 @@ def main() -> int:
     print(
         "hepatic_intrinsic_pbpk_active="
         f"{diagnostics['intrinsic_hepatic_active_in_pbpk']}"
+    )
+    print(
+        f"transporter_processes={diagnostics['transporter_process_count']}"
     )
     return 0
 
