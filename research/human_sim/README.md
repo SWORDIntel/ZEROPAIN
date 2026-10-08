@@ -391,3 +391,152 @@ Complexity earns its place only when it improves:
 5. competing-null performance.
 
 If a simpler model performs equally well, keep the simpler model.
+
+
+### Milestone 2.5 — compound disposition normalization — IMPLEMENTED FOUNDATION
+
+The next major uncertainty source is compound disposition rather than anatomy.
+
+HumanSim now separates:
+
+```text
+external chemistry/disposition backend
+    ↓
+partition coefficient basis normalization
+    ↓
+brain Kp,uu reconciliation
+    ↓
+CompoundDisposition
+    ↓
+PBPK
+```
+
+#### External partition backends
+
+HumanSim does **not** duplicate Schmitt or Rodgers/Rowland equations in Python.
+
+Instead it accepts externally generated tissue partition predictions from established
+backends such as httk/Schmitt or PK-Sim. The CSV contract is:
+
+```text
+tissue,value,basis,source_id,method
+```
+
+Supported bases:
+
+```text
+tissue_to_plasma
+tissue_to_unbound_plasma
+```
+
+This matters because httk's Schmitt implementation returns tissue-to-**unbound
+plasma** coefficients. HumanSim converts them explicitly:
+
+```text
+Kp_tissue:plasma = Ktissue2pu × fu_plasma
+```
+
+A reproducible httk export helper is included:
+
+```bash
+Rscript research/human_sim/examples/generate_httk_disposition.R \
+  name "example compound" httk_partition.csv
+```
+
+The helper exports brain/liver/kidney/rest reduced partition coefficients and labels
+their basis as `tissue_to_unbound_plasma`.
+
+#### Brain exposure
+
+If `Kp,uu,brain` is available, HumanSim can override a generic brain partition
+prediction using:
+
+```text
+Kp,uu,brain = Cu,brain / Cu,plasma
+Kp,brain = Kp,uu,brain × fu_plasma / fu_brain
+```
+
+This makes total brain partitioning consistent with the unbound brain/plasma ratio
+rather than assuming total brain concentration alone determines CNS exposure.
+
+#### Clearance reference models
+
+The repository now implements:
+
+```text
+well-stirred hepatic clearance
+CLh = Qh × fu_b × CLint / (Qh + fu_b × CLint)
+
+filtration-only renal clearance
+CLrenal = GFR × fu_plasma
+```
+
+These are currently **reference diagnostics only**.
+
+The existing PBPK kernel applies its legacy clearance fields against total
+liver/kidney tissue concentration. A blood-referenced well-stirred clearance is not
+the same quantity and is therefore not copied into those fields automatically.
+
+This prevents a subtle but serious concentration-basis error.
+
+#### Verified normalization runner
+
+```bash
+python -m research.human_sim.run_external_disposition \
+  partition.csv \
+  --fu-plasma 0.2 \
+  --fu-brain 0.1 \
+  --blood-to-plasma 1.2 \
+  --kp-uu-brain 0.5 \
+  --output runs/human_sim_external_disposition.json
+```
+
+No dose input is accepted.
+
+#### Compound uncertainty
+
+`disposition_uncertainty.py` propagates explicitly supplied compound-input
+uncertainty separately from virtual-human variability.
+
+No CV is invented by default:
+
+```text
+partition CVs              default 0
+fu_plasma CV               default 0
+fu_brain CV                default 0
+blood:plasma CV            default 0
+Kp,uu,brain CV              default 0
+intrinsic clearance CV     default 0
+GFR CV                      default 0
+```
+
+Bounded fractions use beta distributions matched to mean/CV. Strictly positive
+quantities use lognormal distributions matched to mean/CV.
+
+This distinction is retained in output:
+
+```text
+human variability          imported population
+compound input uncertainty explicit source/user CVs
+sampling uncertainty       bootstrap of finite virtual population
+model-form uncertainty     still separate / unresolved
+```
+
+### Next elimination milestone
+
+Before source-backed hepatic clearance is allowed to drive the PBPK state equations,
+the liver/kidney operators should be refactored to distinguish:
+
+```text
+blood delivery
+unbound plasma concentration
+unbound tissue concentration
+intrinsic metabolic clearance
+active uptake/efflux
+glomerular filtration
+active renal secretion
+tubular reabsorption
+```
+
+Until then, well-stirred and filtration-only results remain diagnostics rather than
+silently changing PBPK elimination.
