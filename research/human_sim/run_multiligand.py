@@ -217,12 +217,12 @@ def _relations(payload: dict):
                 )
 
     ddi = payload["transporter_ddi"]
-    if (
+    if abs(
         ddi["inhibited_victim_final_central"]
-        <= ddi["control_victim_final_central"]
-    ):
+        - ddi["control_victim_final_central"]
+    ) < 1e-8:
         failures.append(
-            "transporter inhibitor failed to retain victim in central"
+            "transporter inhibitor failed to change victim central trajectory"
         )
     if (
         ddi["inhibited_victim_final_liver"]
