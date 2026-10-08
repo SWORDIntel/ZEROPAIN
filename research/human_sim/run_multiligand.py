@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 
 from research.human_sim.competition import LigandInteraction
+from research.human_sim.coupled_pbpk_reference import simulate_coupled_pbpk_reference
 from research.human_sim.disposition import CompoundDisposition, synthetic_reference_disposition
 from research.human_sim.multiligand_engine import LigandSpec, simulate_multiligand_chain
 from research.human_sim.physiology import synthetic_reference_physiology
@@ -41,88 +42,8 @@ def _ligand(name: str, *, kd: float, efficacy: float) -> LigandSpec:
     )
 
 
-def _parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--duration-h", type=float, default=4.0)
-    p.add_argument("--dt-h", type=float, default=0.05)
-    p.add_argument("--output", default="runs/human_sim_multiligand.json")
-    return p
-
-
-def build_payload(args: argparse.Namespace) -> dict:
-    physiology = synthetic_reference_physiology()
-    agonist = _ligand("agonist", kd=0.15, efficacy=0.8)
-    antagonist = _ligand("antagonist", kd=0.05, efficacy=0.0)
-
-    control = simulate_multiligand_chain(
-        physiology,
-        {"agonist": agonist},
-        initial_central_amounts={"agonist": 1.0},
-        duration_h=args.duration_h,
-        dt_h=args.dt_h,
-    )
-    competed = simulate_multiligand_chain(
-        physiology,
-        {"agonist": agonist, "antagonist": antagonist},
-        initial_central_amounts={"agonist": 1.0, "antagonist": 1.0},
-        duration_h=args.duration_h,
-        dt_h=args.dt_h,
-    )
-
-    base = synthetic_reference_disposition()
-    victim = LigandSpec(
-        name="victim",
-        disposition=CompoundDisposition(
-            label="victim_transport_SYNTH",
-            tissue_partition_coefficients=dict(base.tissue_partition_coefficients),
-            plasma_unbound_fraction=0.5,
-            brain_unbound_fraction=0.5,
-            transporter_processes=(
-                TransporterProcess(
-                    name="victim_oatp_like",
-                    route="hepatic_uptake",
-                    vmax_amount_per_h=0.30,
-                    km_concentration=0.05,
-                    source_id="synthetic_fixture",
-                    transporter_family="OATP1B1-like",
-                    interaction_group="hepatic_OATP1B1",
-                ),
-            ),
-            evidence_status="synthetic_fixture",
-        ),
-        target_interactions={
-            "PK_DIAGNOSTIC_TARGET": LigandInteraction(
-                ligand_name="victim",
-                kd_concentration=1.0,
-                efficacy=0.0,
-            )
-        },
-    )
-    inhibitor = LigandSpec(
-        name="inhibitor",
-        disposition=CompoundDisposition(
-            label="inhibitor_transport_SYNTH",
-            tissue_partition_coefficients=dict(base.tissue_partition_coefficients),
-            plasma_unbound_fraction=0.5,
-            brain_unbound_fraction=0.5,
-            evidence_status="synthetic_fixture",
-        ),
-        target_interactions={
-            "PK_DIAGNOSTIC_TARGET": LigandInteraction(
-                ligand_name="inhibitor",
-                kd_concentration=10.0,
-                efficacy=0.0,
-            )
-        },
-        transporter_inhibitions=(
-            TransporterInhibition(
-                inhibitor_name="inhibitor",
-                interaction_group="hepatic_OATP1B1",
-                ki_concentration=0.03,
-                source_id="synthetic_fixture",
-            ),
-        ),
-    )
+def _transport_ligands() -> tuple[LigandSpec, LigandSpec]:
+    victim, inhibitor = _transport_ligands()
 
     transport_control = simulate_multiligand_chain(
         physiology,
@@ -208,6 +129,7 @@ def main() -> int:
         label="human_sim.multiligand",
         relations=[_relations],
         replay=lambda: build_payload(args),
+        independent=lambda value: _independent_transport_check(args, value),
     )
     control = payload["control"]["targets"]["MOR_SYNTH"]["mean_signal_magnitude"]
     competed = payload["competition"]["targets"]["MOR_SYNTH"]["mean_signal_magnitude"]
