@@ -1,13 +1,15 @@
 """Couple independent PBPK traces to competitive receptor occupancy.
 
-PK interactions are NOT modeled yet: each ligand gets its own linear PBPK trace through
-the same physiology. Receptor-level competition is then computed from simultaneous
-free-brain concentrations.
+PBPK remains independent unless at least one transporter process has an explicit
+interaction_group or a LigandSpec carries competitive transporter inhibition.
 
-This makes the limitation explicit:
-    PK independence + PD competition
-not:
-    full drug-drug interaction simulation.
+When transporter interaction metadata is present, ligands are advanced synchronously
+through coupled PBPK so shared-site transporter competition can change PK trajectories.
+Receptor-level competition is then computed from the resulting simultaneous free-brain
+concentrations.
+
+This is still not a complete DDI model: enzyme inhibition/induction and
+noncompetitive/transporter-abundance effects are not modeled here.
 """
 
 from __future__ import annotations
@@ -23,9 +25,11 @@ from research.human_sim.adaptation import (
     step_adaptation,
 )
 from research.human_sim.competition import CompetitionState, LigandInteraction, competitive_state
+from research.human_sim.coupled_pbpk import simulate_coupled_pbpk
 from research.human_sim.disposition import CompoundDisposition
 from research.human_sim.pbpk import PBPKTrace, simulate_pbpk
 from research.human_sim.physiology import Physiology
+from research.human_sim.transporter_competition import TransporterInhibition
 
 
 @dataclass(frozen=True)
@@ -33,6 +37,7 @@ class LigandSpec:
     name: str
     disposition: CompoundDisposition
     target_interactions: Mapping[str, LigandInteraction]
+    transporter_inhibitions: tuple[TransporterInhibition, ...] = ()
 
     def validate(self) -> None:
         if not self.name:
@@ -44,6 +49,13 @@ class LigandSpec:
             if interaction.ligand_name != self.name:
                 raise ValueError(
                     f"{self.name}: interaction ligand name {interaction.ligand_name!r} does not match"
+                )
+        for inhibition in self.transporter_inhibitions:
+            inhibition.validate()
+            if inhibition.inhibitor_name != self.name:
+                raise ValueError(
+                    f"{self.name}: transporter inhibitor name "
+                    f"{inhibition.inhibitor_name!r} does not match"
                 )
 
 
@@ -109,6 +121,8 @@ def simulate_multiligand_chain(
 
     pbpk = {}
     target_interactions: dict[str, dict[str, LigandInteraction]] = {}
+    transporter_inhibitions = {}
+    use_coupled_pk = False
 
     for name, ligand in ligands.items():
         ligand.validate()
@@ -117,15 +131,35 @@ def simulate_multiligand_chain(
         amount = float(initial_central_amounts[name])
         if amount < 0:
             raise ValueError("initial central amounts cannot be negative")
-        pbpk[name] = simulate_pbpk(
-            physiology,
-            ligand.disposition,
-            duration_h=duration_h,
-            dt_h=dt_h,
-            initial_central_amount=amount,
-        )
+        if ligand.transporter_inhibitions:
+            transporter_inhibitions[name] = ligand.transporter_inhibitions
+            use_coupled_pk = True
+        if any(
+            process.interaction_group
+            for process in ligand.disposition.transporter_processes
+        ):
+            use_coupled_pk = True
         for target_name, interaction in ligand.target_interactions.items():
             target_interactions.setdefault(target_name, {})[name] = interaction
+
+    if use_coupled_pk:
+        pbpk = simulate_coupled_pbpk(
+            physiology,
+            {name: ligand.disposition for name, ligand in ligands.items()},
+            initial_central_amounts=initial_central_amounts,
+            duration_h=duration_h,
+            dt_h=dt_h,
+            inhibitions_by_ligand=transporter_inhibitions,
+        )
+    else:
+        for name, ligand in ligands.items():
+            pbpk[name] = simulate_pbpk(
+                physiology,
+                ligand.disposition,
+                duration_h=duration_h,
+                dt_h=dt_h,
+                initial_central_amount=float(initial_central_amounts[name]),
+            )
 
     lengths = {len(trace.times_h) for trace in pbpk.values()}
     if len(lengths) != 1:
