@@ -28,6 +28,7 @@ from research.human_sim.disposition_mechanisms import (
     well_stirred_hepatic_clearance,
 )
 from research.human_sim.physiology import Physiology
+from research.human_sim.transporters import TransporterProcess
 
 
 @dataclass(frozen=True)
@@ -46,6 +47,7 @@ class ExternalDispositionInputs:
     fu_liver: float | None = None
     tissue_based_hepatic_clearance_l_per_h: float = 0.0
     tissue_based_renal_clearance_l_per_h: float = 0.0
+    transporter_processes: tuple[TransporterProcess, ...] = ()
 
     def validate(self) -> None:
         if not self.label:
@@ -78,6 +80,12 @@ class ExternalDispositionInputs:
             raise ValueError("tissue-based hepatic clearance cannot be negative")
         if self.tissue_based_renal_clearance_l_per_h < 0:
             raise ValueError("tissue-based renal clearance cannot be negative")
+        names = set()
+        for process in self.transporter_processes:
+            process.validate()
+            if process.name in names:
+                raise ValueError(f"duplicate transporter process name: {process.name}")
+            names.add(process.name)
 
 
 @dataclass(frozen=True)
@@ -143,6 +151,7 @@ def build_external_disposition(
         ),
         liver_unbound_fraction=inputs.fu_liver if activate_intrinsic_hepatic else None,
         renal_gfr_l_per_h=inputs.gfr_l_per_h or 0.0,
+        transporter_processes=tuple(inputs.transporter_processes),
         evidence_status="external_prediction_or_measurement",
         source_ids=(inputs.source_id,),
     )
@@ -184,6 +193,10 @@ def build_external_disposition(
         "filtration_only_renal_reference": renal_reference,
         "intrinsic_hepatic_active_in_pbpk": activate_intrinsic_hepatic,
         "renal_filtration_active_in_pbpk": inputs.gfr_l_per_h is not None,
+        "transporter_process_count": len(inputs.transporter_processes),
+        "transporter_processes": [
+            process.to_dict() for process in inputs.transporter_processes
+        ],
         "clearance_basis_warning": (
             "Well-stirred hepatic clearance remains diagnostic. Intrinsic hepatic "
             "clearance drives PBPK only when fu_liver is explicitly supplied. "
