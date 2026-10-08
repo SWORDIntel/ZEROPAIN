@@ -1,8 +1,14 @@
 """Import provenance-tagged transporter kinetic processes for HumanSim.
 
-CSV columns:
+Required CSV columns:
     name,route,vmax_amount_per_h,km_concentration,
     source_unbound_fraction,source_id,transporter_family
+
+Optional:
+    interaction_group
+
+A non-empty interaction_group opts the process into multi-compound shared-site
+competition. Blank/missing keeps the original independent Michaelis-Menten behavior.
 
 source_unbound_fraction may be blank for blood/plasma-source routes and is required
 for tissue-source efflux/reabsorption routes.
@@ -59,6 +65,7 @@ def load_transporter_csv(path: str | Path) -> tuple[TransporterProcess, ...]:
             source_unbound_fraction=source_fraction,
             source_id=row["source_id"].strip(),
             transporter_family=row["transporter_family"].strip(),
+            interaction_group=row.get("interaction_group", "").strip(),
         )
         process.validate()
         processes.append(process)
