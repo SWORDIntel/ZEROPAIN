@@ -3,10 +3,17 @@
 These parameters are deliberately NOT part of Physiology.
 
 Physiology owns anatomy and blood flow.
-Disposition owns compound/tissue partitioning, unbound fractions, and clearance.
+Disposition owns compound/tissue partitioning, unbound fractions, and the legacy
+organ-tissue elimination coefficients used by the current PBPK kernel.
 
-This separation follows standard PBPK practice and prevents a human profile from
-silently baking in one compound's chemistry.
+IMPORTANT: hepatic_clearance_l_per_h and renal_clearance_l_per_h are currently
+applied against total concentration in the liver/kidney tissue compartments. They are
+NOT interchangeable with a blood-referenced well-stirred hepatic clearance or with a
+plasma-referenced renal clearance. Source-backed external builders therefore leave
+these fields at zero unless a tissue-concentration clearance is explicitly supplied.
+
+This separation prevents a human profile from silently baking in one compound's
+chemistry while also making the remaining elimination-model limitation explicit.
 """
 
 from __future__ import annotations
