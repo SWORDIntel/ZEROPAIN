@@ -17,6 +17,7 @@ import numpy as np
 from research.human_sim.disposition import CompoundDisposition
 from research.human_sim.pbpk import PBPKTrace
 from research.human_sim.physiology import Physiology
+from research.human_sim.transporters import transporter_flux_rates
 
 
 @dataclass(frozen=True)
@@ -85,6 +86,31 @@ def _derivative(
             cleared = disposition.renal_clearance_l_per_h * tissue_concentration
             d[1 + index] -= cleared
             d[-1] += cleared
+
+    tissue_state_map = {
+        name: float(tissue_amounts[index])
+        for index, name in enumerate(tissue_names)
+    }
+    for flux in transporter_flux_rates(
+        central_amount=float(central),
+        tissue_amounts=tissue_state_map,
+        physiology=physiology,
+        processes=disposition.transporter_processes,
+        plasma_unbound_fraction=disposition.plasma_unbound_fraction,
+        blood_to_plasma_ratio=disposition.blood_to_plasma_ratio,
+    ):
+        rate = flux.transferred_amount
+        if flux.source == "central":
+            d[0] -= rate
+        else:
+            d[1 + tissue_names.index(flux.source)] -= rate
+
+        if flux.sink == "central":
+            d[0] += rate
+        elif flux.sink == "eliminated":
+            d[-1] += rate
+        else:
+            d[1 + tissue_names.index(flux.sink)] += rate
 
     if disposition.renal_gfr_l_per_h > 0:
         central_concentration = central / physiology.central_volume_l
