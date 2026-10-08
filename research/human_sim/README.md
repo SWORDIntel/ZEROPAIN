@@ -471,13 +471,29 @@ filtration-only renal clearance
 CLrenal = GFR × fu_plasma
 ```
 
-These are currently **reference diagnostics only**.
+The well-stirred hepatic calculation remains a **reference diagnostic** because it
+is blood-referenced and must not be copied into a liver-tissue elimination field.
 
-The existing PBPK kernel applies its legacy clearance fields against total
-liver/kidney tissue concentration. A blood-referenced well-stirred clearance is not
-the same quantity and is therefore not copied into those fields automatically.
+HumanSim now has two concentration-basis-correct mechanistic elimination paths:
 
-This prevents a subtle but serious concentration-basis error.
+```text
+hepatic intrinsic metabolism
+rate = CLint,u × fu_liver × C_liver,total
+
+glomerular filtration
+rate = GFR × fu_plasma × C_plasma
+     = GFR × fu_plasma / (blood:plasma) × C_blood
+```
+
+These are distinct from the backward-compatible legacy liver/kidney tissue-clearance
+fields.
+
+Intrinsic hepatic metabolism is activated only when both a whole-liver unbound
+intrinsic clearance and `fu_liver` are explicitly supplied. GFR uses the dedicated
+central/plasma filtration operator.
+
+This prevents the previous concentration-basis ambiguity while retaining compatibility
+with old synthetic fixtures.
 
 #### Verified normalization runner
 
@@ -538,5 +554,13 @@ active renal secretion
 tubular reabsorption
 ```
 
-Until then, well-stirred and filtration-only results remain diagnostics rather than
-silently changing PBPK elimination.
+Current status:
+
+- glomerular filtration is implemented on the central/plasma side;
+- unbound intrinsic liver metabolism is implemented on the liver-tissue side;
+- well-stirred hepatic clearance remains diagnostic;
+- active renal secretion/reabsorption are not yet modeled;
+- transporter-mediated hepatic uptake/efflux are not yet modeled.
+
+The next elimination refinement is therefore transporter-aware liver/kidney handling,
+not another scalar clearance shortcut.
