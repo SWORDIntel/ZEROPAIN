@@ -30,6 +30,10 @@ class CompoundDisposition:
     renal_clearance_l_per_h: float = 0.0
     plasma_unbound_fraction: float = 1.0
     brain_unbound_fraction: float = 1.0
+    blood_to_plasma_ratio: float = 1.0
+    hepatic_intrinsic_unbound_clearance_l_per_h: float = 0.0
+    liver_unbound_fraction: float | None = None
+    renal_gfr_l_per_h: float = 0.0
     evidence_status: str = "user_supplied_or_synthetic"
     source_ids: tuple[str, ...] = ()
 
@@ -54,6 +58,25 @@ class CompoundDisposition:
             raise ValueError("plasma_unbound_fraction must be in (0,1]")
         if not 0.0 < self.brain_unbound_fraction <= 1.0:
             raise ValueError("brain_unbound_fraction must be in (0,1]")
+        if self.blood_to_plasma_ratio <= 0:
+            raise ValueError("blood_to_plasma_ratio must be positive")
+        if self.hepatic_intrinsic_unbound_clearance_l_per_h < 0:
+            raise ValueError("hepatic intrinsic unbound clearance cannot be negative")
+        if self.hepatic_intrinsic_unbound_clearance_l_per_h > 0:
+            if self.liver_unbound_fraction is None:
+                raise ValueError(
+                    "liver_unbound_fraction is required when intrinsic hepatic clearance is used"
+                )
+            if not 0.0 < self.liver_unbound_fraction <= 1.0:
+                raise ValueError("liver_unbound_fraction must be in (0,1]")
+        elif self.liver_unbound_fraction is not None and not 0.0 < self.liver_unbound_fraction <= 1.0:
+            raise ValueError("liver_unbound_fraction must be in (0,1]")
+        if self.renal_gfr_l_per_h < 0:
+            raise ValueError("renal_gfr_l_per_h cannot be negative")
+        if self.plasma_unbound_fraction / self.blood_to_plasma_ratio > 1.0 + 1e-12:
+            raise ValueError(
+                "plasma_unbound_fraction / blood_to_plasma_ratio exceeds 1"
+            )
 
     def to_dict(self) -> dict:
         value = asdict(self)
