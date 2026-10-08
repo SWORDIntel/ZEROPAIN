@@ -21,6 +21,8 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from typing import Mapping
 
+from research.human_sim.transporters import TransporterProcess
+
 
 @dataclass(frozen=True)
 class CompoundDisposition:
@@ -34,6 +36,7 @@ class CompoundDisposition:
     hepatic_intrinsic_unbound_clearance_l_per_h: float = 0.0
     liver_unbound_fraction: float | None = None
     renal_gfr_l_per_h: float = 0.0
+    transporter_processes: tuple[TransporterProcess, ...] = ()
     evidence_status: str = "user_supplied_or_synthetic"
     source_ids: tuple[str, ...] = ()
 
@@ -77,11 +80,20 @@ class CompoundDisposition:
             raise ValueError(
                 "plasma_unbound_fraction / blood_to_plasma_ratio exceeds 1"
             )
+        names = set()
+        for process in self.transporter_processes:
+            process.validate()
+            if process.name in names:
+                raise ValueError(f"duplicate transporter process name: {process.name}")
+            names.add(process.name)
 
     def to_dict(self) -> dict:
         value = asdict(self)
         value["tissue_partition_coefficients"] = dict(self.tissue_partition_coefficients)
         value["source_ids"] = list(self.source_ids)
+        value["transporter_processes"] = [
+            process.to_dict() for process in self.transporter_processes
+        ]
         return value
 
 
