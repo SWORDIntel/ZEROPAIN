@@ -166,6 +166,31 @@ SOURCE_REGISTRY: Mapping[str, EvidenceSource] = {
             "to obtain total tissue:total plasma Kp."
         ),
     ),
+    "ich_m12_transporters": EvidenceSource(
+        source_id="ich_m12_transporters",
+        title="ICH M12 Drug Interaction Studies",
+        kind="regulatory_guidance",
+        url="https://www.fda.gov/regulatory-information/search-fda-guidance-documents/m12-drug-interaction-studies",
+        citation="ICH M12 Drug Interaction Studies, FDA final guidance, August 2024.",
+        notes=(
+            "Highlights P-gp/BCRP, OATP1B1/1B3, OAT1/OAT3, OCT2, MATE1 and "
+            "MATE2-K as major transporter systems for disposition/DDI evaluation."
+        ),
+    ),
+    "giacomini2010_transporters": EvidenceSource(
+        source_id="giacomini2010_transporters",
+        title="Membrane transporters in drug development",
+        kind="journal_review",
+        url="https://pubmed.ncbi.nlm.nih.gov/20190787/",
+        citation=(
+            "Giacomini KM et al. Nat Rev Drug Discov. 2010;9(3):215-236. "
+            "doi:10.1038/nrd3028"
+        ),
+        notes=(
+            "International Transporter Consortium review describing clinically "
+            "important uptake/efflux transporters in intestine, liver, kidney and barriers."
+        ),
+    ),
     "schmitt_partitioning": EvidenceSource(
         source_id="schmitt_partitioning",
         title="General approach for tissue:plasma partition coefficients",
