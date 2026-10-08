@@ -1,6 +1,6 @@
-name,route,vmax_amount_per_h,km_concentration,source_unbound_fraction,source_id,transporter_family
-hepatic_uptake_like,hepatic_uptake,0.15,0.05,,synthetic_fixture,OATP-like
-biliary_efflux_like,biliary_efflux,0.05,0.04,0.20,synthetic_fixture,P-gp/BCRP-like
-renal_uptake_like,renal_uptake,0.08,0.05,,synthetic_fixture,OAT/OCT-like
-renal_efflux_like,renal_efflux_to_urine,0.04,0.04,0.30,synthetic_fixture,MATE/P-gp-like
-tubular_reabsorption_like,tubular_reabsorption,0.02,0.03,0.25,synthetic_fixture,reabsorption-like
+name,route,vmax_amount_per_h,km_concentration,source_unbound_fraction,source_id,transporter_family,interaction_group
+hepatic_uptake_like,hepatic_uptake,0.15,0.05,,synthetic_fixture,OATP-like,hepatic_OATP_like
+biliary_efflux_like,biliary_efflux,0.05,0.04,0.20,synthetic_fixture,P-gp/BCRP-like,hepatic_PGP_BCRP_like
+renal_uptake_like,renal_uptake,0.08,0.05,,synthetic_fixture,OAT/OCT-like,renal_OAT_OCT_like
+renal_efflux_like,renal_efflux_to_urine,0.04,0.04,0.30,synthetic_fixture,MATE/P-gp-like,renal_MATE_PGP_like
+tubular_reabsorption_like,tubular_reabsorption,0.02,0.03,0.25,synthetic_fixture,reabsorption-like,
