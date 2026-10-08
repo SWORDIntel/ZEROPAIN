@@ -1,0 +1,5 @@
+tissue,value,basis,source_id,method
+brain,4.0,tissue_to_unbound_plasma,synthetic_fixture,synthetic_partition_fixture
+liver,5.0,tissue_to_unbound_plasma,synthetic_fixture,synthetic_partition_fixture
+kidney,3.0,tissue_to_unbound_plasma,synthetic_fixture,synthetic_partition_fixture
+peripheral,2.0,tissue_to_unbound_plasma,synthetic_fixture,synthetic_partition_fixture
