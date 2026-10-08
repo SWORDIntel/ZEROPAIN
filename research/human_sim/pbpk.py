@@ -30,6 +30,7 @@ import numpy as np
 
 from research.human_sim.disposition import CompoundDisposition
 from research.human_sim.physiology import Physiology
+from research.human_sim.transporters import apply_transporter_step
 
 
 InputRate = Callable[[float], float]
@@ -235,6 +236,17 @@ def simulate_pbpk(
             reverse=False,
         )
 
+        central, tissue_state, eliminated, _ = apply_transporter_step(
+            central_amount=central,
+            tissue_amounts=tissue_state,
+            eliminated_amount=eliminated,
+            physiology=physiology,
+            processes=disposition.transporter_processes,
+            plasma_unbound_fraction=disposition.plasma_unbound_fraction,
+            blood_to_plasma_ratio=disposition.blood_to_plasma_ratio,
+            dt_h=0.5 * dt,
+        )
+
         liver = tissues.get("liver")
         if liver is not None and disposition.hepatic_clearance_l_per_h > 0:
             # Backward-compatible legacy tissue-concentration clearance.
@@ -283,6 +295,17 @@ def simulate_pbpk(
             rate_h = filtration_clearance / physiology.central_volume_l
             central, removed = _clear_amount(central, rate_h, dt)
             eliminated += removed
+
+        central, tissue_state, eliminated, _ = apply_transporter_step(
+            central_amount=central,
+            tissue_amounts=tissue_state,
+            eliminated_amount=eliminated,
+            physiology=physiology,
+            processes=disposition.transporter_processes,
+            plasma_unbound_fraction=disposition.plasma_unbound_fraction,
+            blood_to_plasma_ratio=disposition.blood_to_plasma_ratio,
+            dt_h=0.5 * dt,
+        )
 
         central, tissue_state = _exchange_sweep(
             central,
