@@ -43,6 +43,7 @@ class ExternalDispositionInputs:
     kp_uu_brain: float | None = None
     intrinsic_hepatic_clearance_l_per_h: float | None = None
     gfr_l_per_h: float | None = None
+    fu_liver: float | None = None
     tissue_based_hepatic_clearance_l_per_h: float = 0.0
     tissue_based_renal_clearance_l_per_h: float = 0.0
 
@@ -71,6 +72,8 @@ class ExternalDispositionInputs:
             raise ValueError("intrinsic hepatic clearance cannot be negative")
         if self.gfr_l_per_h is not None and self.gfr_l_per_h < 0:
             raise ValueError("GFR cannot be negative")
+        if self.fu_liver is not None and not 0.0 < self.fu_liver <= 1.0:
+            raise ValueError("fu_liver must be in (0,1]")
         if self.tissue_based_hepatic_clearance_l_per_h < 0:
             raise ValueError("tissue-based hepatic clearance cannot be negative")
         if self.tissue_based_renal_clearance_l_per_h < 0:
@@ -120,6 +123,11 @@ def build_external_disposition(
         )
         partitions["brain"] = brain_override
 
+    activate_intrinsic_hepatic = (
+        inputs.intrinsic_hepatic_clearance_l_per_h is not None
+        and inputs.fu_liver is not None
+    )
+
     disposition = CompoundDisposition(
         label=inputs.label,
         tissue_partition_coefficients=partitions,
@@ -127,6 +135,14 @@ def build_external_disposition(
         renal_clearance_l_per_h=inputs.tissue_based_renal_clearance_l_per_h,
         plasma_unbound_fraction=inputs.fu_plasma,
         brain_unbound_fraction=inputs.fu_brain,
+        blood_to_plasma_ratio=inputs.blood_to_plasma_ratio,
+        hepatic_intrinsic_unbound_clearance_l_per_h=(
+            inputs.intrinsic_hepatic_clearance_l_per_h
+            if activate_intrinsic_hepatic
+            else 0.0
+        ),
+        liver_unbound_fraction=inputs.fu_liver if activate_intrinsic_hepatic else None,
+        renal_gfr_l_per_h=inputs.gfr_l_per_h or 0.0,
         evidence_status="external_prediction_or_measurement",
         source_ids=(inputs.source_id,),
     )
@@ -166,8 +182,10 @@ def build_external_disposition(
         "well_stirred_hepatic_reference": hepatic_reference,
         "filtration_only_renal_reference": renal_reference,
         "clearance_basis_warning": (
-            "Reference hepatic/renal clearances are not automatically copied into "
-            "the legacy PBPK tissue-concentration elimination fields."
+            "Well-stirred hepatic clearance remains diagnostic. Intrinsic hepatic "
+            "clearance drives PBPK only when fu_liver is explicitly supplied. "
+            "GFR drives the dedicated central/plasma filtration operator and is "
+            "not copied into the legacy kidney-tissue clearance field."
         ),
     }
     return DispositionBuildResult(disposition=disposition, diagnostics=diagnostics)
