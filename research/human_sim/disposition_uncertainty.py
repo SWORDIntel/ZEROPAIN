@@ -31,6 +31,7 @@ class DispositionUncertainty:
     partition_cv_by_tissue: Mapping[str, float] = field(default_factory=dict)
     fu_plasma_cv: float = 0.0
     fu_brain_cv: float = 0.0
+    fu_liver_cv: float = 0.0
     blood_to_plasma_cv: float = 0.0
     kp_uu_brain_cv: float = 0.0
     intrinsic_hepatic_clearance_cv: float = 0.0
@@ -44,6 +45,7 @@ class DispositionUncertainty:
             *self.partition_cv_by_tissue.values(),
             self.fu_plasma_cv,
             self.fu_brain_cv,
+            self.fu_liver_cv,
             self.blood_to_plasma_cv,
             self.kp_uu_brain_cv,
             self.intrinsic_hepatic_clearance_cv,
@@ -129,6 +131,13 @@ def sample_external_dispositions(
     fu_brain = _sample_fraction(
         rng, base.fu_brain, uncertainty.fu_brain_cv, samples
     )
+    fu_liver = (
+        _sample_fraction(
+            rng, base.fu_liver, uncertainty.fu_liver_cv, samples
+        )
+        if base.fu_liver is not None
+        else None
+    )
     blood_to_plasma = _sample_positive(
         rng,
         base.blood_to_plasma_ratio,
@@ -177,6 +186,7 @@ def sample_external_dispositions(
             },
             fu_plasma=float(fu_plasma[index]),
             fu_brain=float(fu_brain[index]),
+            fu_liver=None if fu_liver is None else float(fu_liver[index]),
             blood_to_plasma_ratio=float(blood_to_plasma[index]),
             kp_uu_brain=None if kp_uu is None else float(kp_uu[index]),
             intrinsic_hepatic_clearance_l_per_h=(
