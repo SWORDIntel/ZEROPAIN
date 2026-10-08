@@ -335,9 +335,15 @@ Therefore:
 - multiple ligands compete for the same receptor pool;
 - target adaptation acts on the resulting signal history.
 
-Current limitation: each ligand's PBPK is simulated independently, then combined at
-the receptor layer. This models **PK independence + PD competition**, not metabolic,
-transporter or protein-binding drug-drug interactions.
+PBPK remains independent when no transporter interaction metadata are present.
+
+When a transporter process has a non-empty `interaction_group`, or a ligand carries
+an explicit competitive transporter-inhibition record, the multi-ligand engine switches
+to synchronous coupled PBPK. Transporter-mediated PK interaction and receptor-level
+PD competition can therefore coexist in one run.
+
+Metabolic enzyme inhibition/induction and protein-binding displacement remain outside
+this milestone.
 
 Synthetic demonstration:
 
@@ -559,11 +565,14 @@ Current status:
 - glomerular filtration is implemented on the central/plasma side;
 - unbound intrinsic liver metabolism is implemented on the liver-tissue side;
 - well-stirred hepatic clearance remains diagnostic;
-- active renal secretion/reabsorption are not yet modeled;
-- transporter-mediated hepatic uptake/efflux are not yet modeled.
+- active renal secretion/reabsorption are implemented as saturable directed transport;
+- transporter-mediated hepatic uptake/efflux are implemented as saturable directed transport;
+- transporter-mediated multi-compound competitive DDIs are implemented for explicit
+  shared interaction groups;
+- metabolic enzyme inhibition/induction remains separate.
 
-The next elimination refinement is therefore transporter-aware liver/kidney handling,
-not another scalar clearance shortcut.
+The remaining refinement is therefore transporter regulation/abundance and explicit
+lumen/gradient biology, not another scalar clearance shortcut.
 
 
 ### Milestone 2.75 — hepatic/renal transporters — IMPLEMENTED FOUNDATION
@@ -643,17 +652,134 @@ classes represented by OATP hepatic uptake, OAT/OCT renal uptake, MATE/P-gp/BCRP
 efflux and renal secretion/reabsorption patterns without asserting any synthetic
 fixture parameters are real transporter measurements.
 
-#### Current limitation
+#### Multi-compound interaction status
 
-This milestone models independent transporter processes for one compound.
+Independent single-compound transporter processes remain the default. A process opts
+into multi-compound shared-site competition only when `interaction_group` is set.
 
-It does **not yet** model:
-- competitive inhibition between multiple compounds at the same transporter;
-- substrate-dependent Km/Ki changes;
+Competitive transporter DDIs are now implemented separately from this base layer;
+see Milestone 2.9 below.
+
+Still not modeled here:
+- noncompetitive/uncompetitive/mixed inhibition;
 - transporter induction/downregulation;
 - transporter abundance scaling by tissue/cell expression;
 - pH/ion-gradient coupling for MATE-like systems;
 - explicit tubular lumen concentration.
 
-Those belong in the next transporter-interaction refinement rather than being hidden
-inside Vmax/Km.
+Those remain separate mechanisms rather than being hidden inside Vmax/Km.
+
+
+### Milestone 2.9 — multi-compound transporter competition — IMPLEMENTED FOUNDATION
+
+HumanSim now supports shared-site transporter coupling between simultaneous compounds.
+
+A substrate process opts in explicitly:
+
+```text
+interaction_group = hepatic_OATP1B1
+```
+
+Processes with a blank group keep their original independent Michaelis-Menten
+behavior.
+
+For a shared group:
+
+```text
+substrate weight_j = Cu_j / Km_j
+inhibitor weight_k = Cu_k / Ki_k
+
+D = 1 + Σ substrate weights + Σ inhibitor weights
+
+rate_j = Vmax_j × substrate weight_j / D
+```
+
+Consequences:
+
+- two transported substrates automatically compete for the same declared site;
+- an inhibitor-only compound can contribute `Cu/Ki` without itself being transported;
+- the same ligand cannot be counted both as substrate and explicit inhibitor for one
+  interaction group;
+- interaction groups are explicit site/location identifiers, not inferred from a broad
+  family label such as "OAT/OCT-like".
+
+#### Coupled PK
+
+Transporter DDI is not post-processing.
+
+When transporter interactions are present, all ligands are advanced synchronously:
+
+```text
+exchange half-step
+    ↓
+shared transporter competition half-step
+    ↓
+compound-specific elimination
+    ↓
+shared transporter competition half-step
+    ↓
+reverse exchange half-step
+```
+
+The transporter denominator couples compounds, while mass remains tracked and
+conserved separately for every ligand.
+
+If no interaction group/inhibition metadata are present, the established independent
+single-ligand PBPK path is retained.
+
+#### External metadata
+
+Transporter kinetic CSV files may optionally add:
+
+```text
+interaction_group
+```
+
+Competitive inhibition can be imported independently with:
+
+```text
+inhibitor_name,interaction_group,ki_concentration,source_compartment,
+source_unbound_fraction,source_id,mode
+```
+
+Only `mode=competitive` is currently accepted.
+
+For inhibitor concentration:
+- `source_compartment=central` uses unbound plasma concentration derived from
+  blood concentration, fu_plasma and blood:plasma ratio;
+- tissue-source inhibition requires an explicit source unbound fraction.
+
+#### Independent verification
+
+The production coupled solver uses operator splitting and finite transporter
+half-steps.
+
+`coupled_pbpk_reference.py` separately re-derives the shared-site denominator and
+integrates the full coupled ODE system with fine-step RK4.
+
+Tests require production/reference agreement for:
+- two competing transported substrates;
+- inhibitor-only transporter DDI.
+
+The strict multi-ligand runner also attaches the coupled RK4 result to ZeroPain's
+independent-check ECC bit (`0x20`).
+
+This is an implementation-consistency check, not evidence that any synthetic Ki/Km
+values are biologically correct.
+
+#### Current boundary
+
+Implemented:
+- shared-site competitive substrate competition;
+- competitive inhibitor-only effects;
+- simultaneous transporter PK DDI + receptor PD competition;
+- per-ligand mass conservation;
+- independent RK4 verification.
+
+Not yet implemented:
+- noncompetitive/uncompetitive/mixed transporter inhibition;
+- time-dependent inhibition;
+- transporter induction/downregulation;
+- expression/abundance scaling;
+- explicit renal tubular-lumen state;
+- electrochemical/pH-gradient coupling.
