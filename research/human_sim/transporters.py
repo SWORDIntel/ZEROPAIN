@@ -278,3 +278,52 @@ def apply_transporter_step(
         )
 
     return central, updated, eliminated, tuple(fluxes)
+
+
+
+def transporter_flux_rates(
+    *,
+    central_amount: float,
+    tissue_amounts: Mapping[str, float],
+    physiology: Physiology,
+    processes: tuple[TransporterProcess, ...],
+    plasma_unbound_fraction: float,
+    blood_to_plasma_ratio: float,
+) -> tuple[TransportFlux, ...]:
+    """Return instantaneous transporter rates without applying a timestep cap.
+
+    For RK4/reference integration, requested_amount and transferred_amount both carry
+    amount/hour rather than amount. The field names are retained for schema reuse.
+    """
+
+    fluxes = []
+    for process in processes:
+        process.validate()
+        route = TransportRoute(process.route)
+        source, sink = _route_endpoints(route)
+        concentration = _source_unbound_concentration(
+            process,
+            source=source,
+            central_amount=central_amount,
+            tissue_amounts=tissue_amounts,
+            physiology=physiology,
+            plasma_unbound_fraction=plasma_unbound_fraction,
+            blood_to_plasma_ratio=blood_to_plasma_ratio,
+        )
+        rate = michaelis_menten_rate(
+            concentration,
+            vmax_amount_per_h=process.vmax_amount_per_h,
+            km_concentration=process.km_concentration,
+        )
+        fluxes.append(
+            TransportFlux(
+                process=process.name,
+                route=route.value,
+                source=source,
+                sink=sink,
+                source_unbound_concentration=concentration,
+                requested_amount=rate,
+                transferred_amount=rate,
+            )
+        )
+    return tuple(fluxes)
