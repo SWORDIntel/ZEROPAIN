@@ -2,6 +2,10 @@ import numpy as np
 import pytest
 
 from research.human_sim.coupled_pbpk import simulate_coupled_pbpk
+from research.human_sim.coupled_pbpk_reference import (
+    compare_coupled_to_reference,
+    simulate_coupled_pbpk_reference,
+)
 from research.human_sim.disposition import CompoundDisposition
 from research.human_sim.multiligand_engine import LigandSpec, simulate_multiligand_chain
 from research.human_sim.competition import LigandInteraction
@@ -270,3 +274,123 @@ def test_transporter_inhibition_changes_pk_trajectory_in_multiligand_engine():
     )
     for trace in inhibited.pbpk_by_ligand.values():
         assert np.max(np.abs(trace.mass_balance_error)) < 1e-10
+
+
+
+def test_coupled_production_matches_independent_rk4_for_substrate_competition():
+    physiology = Physiology(
+        central_volume_l=5.0,
+        tissues=(
+            TissueSpec("brain", 1.4, 40.0),
+            TissueSpec("liver", 1.8, 75.0),
+            TissueSpec("kidney", 0.35, 55.0),
+            TissueSpec("peripheral", 30.0, 60.0),
+        ),
+        label="substrate_competition_reference",
+    )
+    dispositions = {
+        "a": CompoundDisposition(
+            label="a",
+            tissue_partition_coefficients={
+                "brain": 1.2, "liver": 2.0, "kidney": 1.4, "peripheral": 1.8,
+            },
+            plasma_unbound_fraction=0.5,
+            brain_unbound_fraction=0.5,
+            transporter_processes=(
+                _uptake("a_oatp", vmax=0.25, km=0.06),
+            ),
+        ),
+        "b": CompoundDisposition(
+            label="b",
+            tissue_partition_coefficients={
+                "brain": 1.0, "liver": 1.7, "kidney": 1.2, "peripheral": 1.5,
+            },
+            plasma_unbound_fraction=0.4,
+            brain_unbound_fraction=0.4,
+            transporter_processes=(
+                _uptake("b_oatp", vmax=0.18, km=0.04),
+            ),
+        ),
+    }
+    initial = {"a": 1.0, "b": 0.8}
+    primary = simulate_coupled_pbpk(
+        physiology,
+        dispositions,
+        initial_central_amounts=initial,
+        duration_h=1.5,
+        dt_h=0.01,
+    )
+    reference = simulate_coupled_pbpk_reference(
+        physiology,
+        dispositions,
+        initial_central_amounts=initial,
+        duration_h=1.5,
+        output_dt_h=0.01,
+        substeps=30,
+    )
+    comparison = compare_coupled_to_reference(primary, reference)
+    assert comparison["max_metric"] < 0.05, comparison
+
+
+def test_coupled_production_matches_independent_rk4_for_inhibitor_only_ddi():
+    physiology = Physiology(
+        central_volume_l=5.0,
+        tissues=(
+            TissueSpec("brain", 1.4, 40.0),
+            TissueSpec("liver", 1.8, 75.0),
+            TissueSpec("kidney", 0.35, 55.0),
+            TissueSpec("peripheral", 30.0, 60.0),
+        ),
+        label="inhibitor_reference",
+    )
+    dispositions = {
+        "victim": CompoundDisposition(
+            label="victim",
+            tissue_partition_coefficients={
+                "brain": 1.2, "liver": 2.0, "kidney": 1.4, "peripheral": 1.8,
+            },
+            plasma_unbound_fraction=0.5,
+            brain_unbound_fraction=0.5,
+            transporter_processes=(
+                _uptake("victim_oatp", vmax=0.30, km=0.05),
+            ),
+        ),
+        "inhibitor": CompoundDisposition(
+            label="inhibitor",
+            tissue_partition_coefficients={
+                "brain": 1.0, "liver": 1.0, "kidney": 1.0, "peripheral": 1.0,
+            },
+            plasma_unbound_fraction=0.5,
+            brain_unbound_fraction=0.5,
+        ),
+    }
+    inhibitions = {
+        "inhibitor": (
+            TransporterInhibition(
+                inhibitor_name="inhibitor",
+                interaction_group="hepatic_OATP1B1",
+                ki_concentration=0.03,
+                source_id="synthetic_fixture",
+            ),
+        )
+    }
+    initial = {"victim": 1.0, "inhibitor": 1.0}
+    primary = simulate_coupled_pbpk(
+        physiology,
+        dispositions,
+        initial_central_amounts=initial,
+        duration_h=1.5,
+        dt_h=0.01,
+        inhibitions_by_ligand=inhibitions,
+    )
+    reference = simulate_coupled_pbpk_reference(
+        physiology,
+        dispositions,
+        initial_central_amounts=initial,
+        duration_h=1.5,
+        output_dt_h=0.01,
+        substeps=30,
+        inhibitions_by_ligand=inhibitions,
+    )
+    comparison = compare_coupled_to_reference(primary, reference)
+    assert comparison["max_metric"] < 0.05, comparison
