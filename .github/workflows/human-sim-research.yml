@@ -65,6 +65,17 @@ jobs:
             --dt-h 0.05 \
             --output /tmp/human_sim_multiligand.json
 
+          python -m research.human_sim.run_external_disposition \
+            research/human_sim/examples/external_partition_synthetic_fixture.csv \
+            --label synthetic_external \
+            --fu-plasma 0.2 \
+            --fu-brain 0.1 \
+            --blood-to-plasma 1.2 \
+            --kp-uu-brain 0.5 \
+            --intrinsic-hepatic-clearance-lph 20 \
+            --gfr-lph 7.5 \
+            --output /tmp/human_sim_external_disposition.json
+
           python -m zeropain.verification_scrub \
             --log /tmp/human_sim_verification.jsonl \
             --report /tmp/human_sim_verification_scrub.json
