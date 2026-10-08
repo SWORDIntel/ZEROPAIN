@@ -564,3 +564,96 @@ Current status:
 
 The next elimination refinement is therefore transporter-aware liver/kidney handling,
 not another scalar clearance shortcut.
+
+
+### Milestone 2.75 — hepatic/renal transporters — IMPLEMENTED FOUNDATION
+
+HumanSim now models active transport as directed saturable **amount fluxes**, not as
+extra scalar clearance terms.
+
+Current routes:
+
+```text
+blood/plasma -> liver       hepatic_uptake
+liver -> blood/plasma       hepatic_efflux_to_blood
+liver -> eliminated         biliary_efflux
+
+blood/plasma -> kidney      renal_uptake
+kidney -> eliminated        renal_efflux_to_urine
+kidney -> blood/plasma      tubular_reabsorption
+```
+
+Each process carries:
+
+```text
+name
+route
+Vmax (amount/hour)
+Km (concentration)
+source unbound fraction when tissue-sourced
+source/provenance ID
+transporter-family label
+```
+
+Flux kinetics:
+
+```text
+rate = Vmax × Cu,source / (Km + Cu,source)
+```
+
+For blood/plasma-source uptake, HumanSim uses:
+
+```text
+Cu,plasma = Cblood × fu_plasma / blood:plasma
+```
+
+For tissue-source efflux/reabsorption, an explicit tissue-source unbound fraction is
+required. No default is invented.
+
+All transporter routes are evaluated from one pre-transport state. If simultaneous
+outgoing requests exceed the available amount in a source compartment, they are
+scaled proportionally. The operator therefore preserves non-negativity and exact mass
+balance.
+
+The production PBPK solver applies transporter half-steps symmetrically around the
+elimination operator. The independent RK4 verifier computes the continuous
+Michaelis-Menten fluxes separately.
+
+#### External transporter table
+
+```text
+name,route,vmax_amount_per_h,km_concentration,
+source_unbound_fraction,source_id,transporter_family
+```
+
+Use:
+
+```bash
+python -m research.human_sim.run_external_disposition \
+  partition.csv \
+  --transporter-csv transporters.csv \
+  --fu-plasma 0.2 \
+  --fu-brain 0.1 \
+  --output runs/human_sim_external_disposition.json
+```
+
+Regulatory/source provenance includes ICH M12 / FDA transporter guidance and the
+International Transporter Consortium framing. The architecture covers the major
+classes represented by OATP hepatic uptake, OAT/OCT renal uptake, MATE/P-gp/BCRP
+efflux and renal secretion/reabsorption patterns without asserting any synthetic
+fixture parameters are real transporter measurements.
+
+#### Current limitation
+
+This milestone models independent transporter processes for one compound.
+
+It does **not yet** model:
+- competitive inhibition between multiple compounds at the same transporter;
+- substrate-dependent Km/Ki changes;
+- transporter induction/downregulation;
+- transporter abundance scaling by tissue/cell expression;
+- pH/ion-gradient coupling for MATE-like systems;
+- explicit tubular lumen concentration.
+
+Those belong in the next transporter-interaction refinement rather than being hidden
+inside Vmax/Km.
