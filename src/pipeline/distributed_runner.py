@@ -29,6 +29,7 @@ import os
 import signal
 import tempfile
 import time
+import uuid
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, List, Optional
 
@@ -170,7 +171,7 @@ class DistributedRunner:
     ) -> None:
         self.backend = backend.lower()
         self.checkpoint_root = Path(checkpoint_dir)
-        self.run_id = run_id or time.strftime("%Y%m%d-%H%M%S")
+        self.run_id = run_id or f"{time.strftime('%Y%m%d-%H%M%S')}-{uuid.uuid4().hex[:8]}"
         self.resume = resume
         self.max_retries = max_retries
         self.retry_base_delay = retry_base_delay

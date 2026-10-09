@@ -1,0 +1,785 @@
+# HumanSim research stack
+
+HumanSim is a separate multiscale virtual-human research track.
+
+It is **not** the legacy ZeroPain one-compartment patient simulator and it is not a
+clinical dosing engine. The aim is to replace dimensionless top-down mechanism knobs
+with a sequence of biologically interpretable layers that can each be calibrated,
+falsified and independently verified.
+
+## Architecture
+
+Planned dependency direction:
+
+```text
+source-backed phenotype / physiology
+        ↓
+perfusion-limited PBPK
+        ↓
+free brain exposure
+        ↓
+receptor occupancy
+        ↓
+target efficacy / coupling
+        ↓
+receptor internalisation + recovery
+        ↓
+intracellular/signalling models
+        ↓
+neural-population dynamics
+        ↓
+autonomic / circadian / endocrine state
+        ↓
+cognitive/state-transition model
+        ↓
+observable behaviour + physiology
+```
+
+The dependency arrow is intentional. Higher layers should not directly reach through
+the lower layers and set receptor activity or brain concentration by hand.
+
+## Milestone 1 — implemented
+
+Current executable chain:
+
+```text
+Physiology
+   │
+   ├── central compartment
+   ├── brain
+   ├── liver
+   ├── kidney
+   └── peripheral tissue
+          ↓
+perfusion-limited exchange + hepatic/renal clearance
+          ↓
+free brain concentration
+          ↓
+Hill/Langmuir target occupancy
+          ↓
+effect gain + polarity
+          ↓
+surface receptor availability
+          ↓
+downstream coupling availability
+```
+
+Run the synthetic fixture:
+
+```bash
+python -m research.human_sim.run_pbpk_receptor \
+  --duration-h 12 \
+  --dt-h 0.05 \
+  --initial-central-units 1.0 \
+  --output runs/human_sim_pbpk_receptor.json
+```
+
+The amount is deliberately in **arbitrary units**. There is no mg/kg conversion,
+administration preset or human dose recommendation.
+
+Add `--trace` to include the full time series.
+
+## Numerics
+
+For each tissue:
+
+```text
+dA_t/dt = Q_t (C_c - C_t/Kp_t)
+```
+
+is represented as bidirectional first-order exchange:
+
+```text
+k_c→t = Q_t / V_c
+k_t→c = Q_t / (V_t Kp_t)
+```
+
+Each central↔tissue pair is advanced with the exact two-state analytical solution
+for that timestep. This gives:
+
+- non-negative compartment amounts;
+- exchange-level exact mass conservation;
+- explicit accumulation of eliminated amount;
+- a measurable whole-system mass-balance residual.
+
+The production kernel now uses a symmetric forward/reverse half-sweep around the
+clearance operator to reduce tissue-order bias while preserving positivity and exact
+pairwise conservation.
+
+An independent RK4 reference integrator in `pbpk_reference.py` does not reuse the
+analytical pairwise update. In strict verification mode, the production and RK4 traces
+are compared by normalized RMSE. This is an implementation-consistency check, not
+biological validation.
+
+## Receptor layer
+
+Binding and effect are separate:
+
+```text
+occupancy = C^n / (Kd^n + C^n)
+
+effective signal
+    = occupancy
+    × target effect gain
+    × surface receptor fraction
+    × downstream coupling fraction
+```
+
+This prevents "same occupancy = same effect" from being built into the architecture.
+
+The generic adaptation state contains:
+
+- surface receptor fraction;
+- coupling fraction;
+- activity-dependent internalisation/desensitisation;
+- recycling/resensitisation.
+
+This gives the model biological memory: the same concentration at two different times
+can produce different effects because the receptor/signalling state has changed.
+
+## Verification
+
+The milestone runner uses ZeroPain's ECC-like verifier.
+
+With:
+
+```bash
+export ZEROPAIN_VERIFY=1
+export ZEROPAIN_VERIFY_STRICT=1
+export ZEROPAIN_VERIFY_REPLAY=1
+```
+
+it checks:
+
+- finite outputs;
+- probability/occupancy-like bounds;
+- PBPK mass-balance residual;
+- receptor occupancy/signal bounds;
+- surface/coupling bounds;
+- written-file round trip;
+- deterministic full-chain replay.
+
+`syndrome=0` means those computational checks passed. It does not mean the
+physiology or pharmacology is calibrated correctly.
+
+## Critical current limitation
+
+`synthetic_reference_physiology()` and `synthetic_target_panel()` are SOFTWARE
+FIXTURES.
+
+Their values are explicitly marked:
+
+```text
+SYNTHETIC_REFERENCE_DO_NOT_USE_CLINICALLY
+```
+
+They are not asserted to be literature-derived human organ volumes, flows,
+partition coefficients, clearances, receptor affinities or efficacies.
+
+This is deliberate: architecture first, then sourced calibration.
+
+## Next milestones
+
+### Milestone 2 — source-backed virtual physiology — IMPLEMENTED FOUNDATION
+
+HumanSim now supports importing **correlated virtual individuals** from an
+`httk::httkpop_generate()` CSV instead of inventing independent Gaussian organ
+variation.
+
+Generate a source-backed population externally in R:
+
+```bash
+Rscript research/human_sim/examples/generate_httk_population.R \
+  httkpop.csv 1000 42
+```
+
+The script calls `httk::httkpop_generate(method="direct resampling")`, which
+resamples correlated NHANES-linked virtual individuals rather than independently
+drawing each organ variable.
+
+Then run:
+
+```bash
+python -m research.human_sim.run_population httkpop.csv \
+  --format httk \
+  --source-id httk_population \
+  --bootstrap-resamples 1000 \
+  --output runs/human_sim_population.json
+```
+
+The adapter currently keeps brain, liver and kidney explicit and lumps the remaining
+body mass/flow into a peripheral compartment. That is a **documented model-reduction
+transform**, not a lossless reproduction of httk.
+
+The output records:
+- source ID and citation registry;
+- SHA-256 of the imported population file;
+- individual count;
+- exact transform descriptions;
+- empirical physiology means/SDs;
+- empirical 5th/50th/95th percentile model outcomes.
+
+This preserves covariance between body size, tissue masses and flows because complete
+individual rows are imported together.
+
+Population outputs now also include:
+
+- an empirical physiology correlation matrix for the reduced HumanSim variables;
+- q05/q50/q95 outcome spread across virtual individuals;
+- percentile-bootstrap intervals for the finite-population mean and median outcomes;
+- an explicit warning that bootstrap intervals are **sampling uncertainty only**,
+  not total biological/model uncertainty.
+
+This distinction matters: PBPK best-practice guidance separates inter-individual
+variability from uncertainty in model parameters and recommends propagating both
+rather than collapsing them into one interval.
+
+### Important architecture correction
+
+Tissue/plasma partition coefficients, unbound fractions and clearance are **not human
+physiology constants**. They now live in `CompoundDisposition`.
+
+```text
+Physiology
+  organ volume
+  organ blood flow
+  central volume
+
+CompoundDisposition
+  tissue:plasma partition coefficients
+  plasma/brain unbound fraction
+  hepatic clearance
+  renal clearance
+```
+
+The same virtual person can therefore be reused across many compound profiles without
+changing their anatomy.
+
+Every calibrated parameter should carry:
+
+```text
+value/distribution
+units
+population
+source
+source date
+assay/measurement context
+uncertainty
+evidence status
+```
+
+No unsourced default should silently become a "human" constant.
+
+### Population source provenance
+
+Current registry entries include:
+- `httk_population` — Ring et al. 2017 virtual-population methodology;
+- `httk_tissue` — httk physiology/tissue tables and their compiled references;
+- `pksim_population` — Open Systems Pharmacology human population database/export;
+- `schmitt_partitioning` — compound-specific tissue partition modelling.
+
+The committed `examples/httkpop_synthetic_fixture.csv` exists **only for CI** and is
+not a real httk export.
+
+The population CLI separates file **format** from **provenance**. The CI fixture is
+run with `--source-id synthetic_fixture`; a file merely having httk-compatible
+columns is therefore not automatically labelled as a real httk population.
+
+HumanSim also includes `reference_physiology.py`, a reduced literature-reference
+composite used only for sanity auditing imported populations. It combines:
+
+- ICRP Publication 89 adult reference organ masses/densities;
+- the Mann/ATSDR human PBPK table for blood volume, cardiac output, liver and kidney flow;
+- Lassen's approximately 50 mL/100 g/min young-adult cerebral blood-flow reference;
+- Brown et al.'s PBPK physiology review for consistency/provenance context.
+
+Derived values and reduction assumptions are labelled explicitly. In particular, the
+lumped peripheral compartment and broad 0.5–1.5 reference-ratio screen are modelling
+checks, **not** clinical normal ranges.
+
+`run_population.py` now reports:
+- reference ratios for imported physiology;
+- total-flow/cardio-output consistency;
+- the number of broad-screen outliers;
+- example outlier flags;
+- without modifying or rejecting the imported individuals.
+
+This preserves the upstream httk/PK-Sim correlations rather than forcing every virtual
+person back toward a reference mean.
+
+The density conversions used by the current reduced httk adapter are explicit
+approximation constants and remain a calibration TODO. A later adapter should ingest
+direct organ volumes where the upstream population export provides them.
+
+### Milestone 3 — multi-ligand receptor competition — IMPLEMENTED
+
+HumanSim now supports same-site competitive occupancy across simultaneous ligands:
+
+```text
+w_i = (C_i / Kd_i)^n
+occupancy_i = w_i / (1 + Σw)
+unbound receptor = 1 / (1 + Σw)
+```
+
+Signal is then computed separately from binding:
+
+```text
+Σ occupancy_i × efficacy_i × polarity_i
+    × surface receptor fraction
+    × coupling fraction
+```
+
+Therefore:
+- an antagonist can occupy receptor without producing agonist signal;
+- a partial agonist can bind similarly while producing less signal;
+- multiple ligands compete for the same receptor pool;
+- target adaptation acts on the resulting signal history.
+
+PBPK remains independent when no transporter interaction metadata are present.
+
+When a transporter process has a non-empty `interaction_group`, or a ligand carries
+an explicit competitive transporter-inhibition record, the multi-ligand engine switches
+to synchronous coupled PBPK. Transporter-mediated PK interaction and receptor-level
+PD competition can therefore coexist in one run.
+
+Metabolic enzyme inhibition/induction and protein-binding displacement remain outside
+this milestone.
+
+Synthetic demonstration:
+
+```bash
+python -m research.human_sim.run_multiligand \
+  --output runs/human_sim_multiligand.json
+```
+
+The demonstration uses arbitrary units and a synthetic agonist/antagonist pair.
+
+### Milestone 4 — signalling
+
+Add target-specific signalling models only where source data justify them:
+
+- G-protein coupling;
+- arrestin/internalisation pathways;
+- second-messenger state;
+- slow homeostatic adaptation.
+
+### Milestone 5 — reduced neural populations
+
+Do **not** jump directly to millions of detailed neurons.
+
+Start with approximately 6–12 calibrated population nodes and only increase
+resolution when held-out observations require it.
+
+Candidate layers include PFC/executive control, salience, striatal gating,
+thalamocortical integration and locus-coeruleus/autonomic coupling.
+
+### Milestone 6 — virtual-human ensemble
+
+A human simulation should return a distribution:
+
+```text
+P(outcome | phenotype, physiology, exposure history, model uncertainty)
+```
+
+not one deterministic "average person".
+
+Population generation should preserve parameter correlations rather than sampling
+every biological variable independently.
+
+## Research rule
+
+Complexity earns its place only when it improves:
+
+1. held-out prediction;
+2. parameter recovery;
+3. independent-seed stability;
+4. observable-only identifiability;
+5. competing-null performance.
+
+If a simpler model performs equally well, keep the simpler model.
+
+
+### Milestone 2.5 — compound disposition normalization — IMPLEMENTED FOUNDATION
+
+The next major uncertainty source is compound disposition rather than anatomy.
+
+HumanSim now separates:
+
+```text
+external chemistry/disposition backend
+    ↓
+partition coefficient basis normalization
+    ↓
+brain Kp,uu reconciliation
+    ↓
+CompoundDisposition
+    ↓
+PBPK
+```
+
+#### External partition backends
+
+HumanSim does **not** duplicate Schmitt or Rodgers/Rowland equations in Python.
+
+Instead it accepts externally generated tissue partition predictions from established
+backends such as httk/Schmitt or PK-Sim. The CSV contract is:
+
+```text
+tissue,value,basis,source_id,method
+```
+
+Supported bases:
+
+```text
+tissue_to_plasma
+tissue_to_unbound_plasma
+```
+
+This matters because httk's Schmitt implementation returns tissue-to-**unbound
+plasma** coefficients. HumanSim converts them explicitly:
+
+```text
+Kp_tissue:plasma = Ktissue2pu × fu_plasma
+```
+
+A reproducible httk export helper is included:
+
+```bash
+Rscript research/human_sim/examples/generate_httk_disposition.R \
+  name "example compound" httk_partition.csv
+```
+
+The helper exports brain/liver/kidney/rest reduced partition coefficients and labels
+their basis as `tissue_to_unbound_plasma`.
+
+#### Brain exposure
+
+If `Kp,uu,brain` is available, HumanSim can override a generic brain partition
+prediction using:
+
+```text
+Kp,uu,brain = Cu,brain / Cu,plasma
+Kp,brain = Kp,uu,brain × fu_plasma / fu_brain
+```
+
+This makes total brain partitioning consistent with the unbound brain/plasma ratio
+rather than assuming total brain concentration alone determines CNS exposure.
+
+#### Clearance reference models
+
+The repository now implements:
+
+```text
+well-stirred hepatic clearance
+CLh = Qh × fu_b × CLint / (Qh + fu_b × CLint)
+
+filtration-only renal clearance
+CLrenal = GFR × fu_plasma
+```
+
+The well-stirred hepatic calculation remains a **reference diagnostic** because it
+is blood-referenced and must not be copied into a liver-tissue elimination field.
+
+HumanSim now has two concentration-basis-correct mechanistic elimination paths:
+
+```text
+hepatic intrinsic metabolism
+rate = CLint,u × fu_liver × C_liver,total
+
+glomerular filtration
+rate = GFR × fu_plasma × C_plasma
+     = GFR × fu_plasma / (blood:plasma) × C_blood
+```
+
+These are distinct from the backward-compatible legacy liver/kidney tissue-clearance
+fields.
+
+Intrinsic hepatic metabolism is activated only when both a whole-liver unbound
+intrinsic clearance and `fu_liver` are explicitly supplied. GFR uses the dedicated
+central/plasma filtration operator.
+
+This prevents the previous concentration-basis ambiguity while retaining compatibility
+with old synthetic fixtures.
+
+#### Verified normalization runner
+
+```bash
+python -m research.human_sim.run_external_disposition \
+  partition.csv \
+  --fu-plasma 0.2 \
+  --fu-brain 0.1 \
+  --blood-to-plasma 1.2 \
+  --kp-uu-brain 0.5 \
+  --output runs/human_sim_external_disposition.json
+```
+
+No dose input is accepted.
+
+#### Compound uncertainty
+
+`disposition_uncertainty.py` propagates explicitly supplied compound-input
+uncertainty separately from virtual-human variability.
+
+No CV is invented by default:
+
+```text
+partition CVs              default 0
+fu_plasma CV               default 0
+fu_brain CV                default 0
+blood:plasma CV            default 0
+Kp,uu,brain CV              default 0
+intrinsic clearance CV     default 0
+GFR CV                      default 0
+```
+
+Bounded fractions use beta distributions matched to mean/CV. Strictly positive
+quantities use lognormal distributions matched to mean/CV.
+
+This distinction is retained in output:
+
+```text
+human variability          imported population
+compound input uncertainty explicit source/user CVs
+sampling uncertainty       bootstrap of finite virtual population
+model-form uncertainty     still separate / unresolved
+```
+
+### Next elimination milestone
+
+Before source-backed hepatic clearance is allowed to drive the PBPK state equations,
+the liver/kidney operators should be refactored to distinguish:
+
+```text
+blood delivery
+unbound plasma concentration
+unbound tissue concentration
+intrinsic metabolic clearance
+active uptake/efflux
+glomerular filtration
+active renal secretion
+tubular reabsorption
+```
+
+Current status:
+
+- glomerular filtration is implemented on the central/plasma side;
+- unbound intrinsic liver metabolism is implemented on the liver-tissue side;
+- well-stirred hepatic clearance remains diagnostic;
+- active renal secretion/reabsorption are implemented as saturable directed transport;
+- transporter-mediated hepatic uptake/efflux are implemented as saturable directed transport;
+- transporter-mediated multi-compound competitive DDIs are implemented for explicit
+  shared interaction groups;
+- metabolic enzyme inhibition/induction remains separate.
+
+The remaining refinement is therefore transporter regulation/abundance and explicit
+lumen/gradient biology, not another scalar clearance shortcut.
+
+
+### Milestone 2.75 — hepatic/renal transporters — IMPLEMENTED FOUNDATION
+
+HumanSim now models active transport as directed saturable **amount fluxes**, not as
+extra scalar clearance terms.
+
+Current routes:
+
+```text
+blood/plasma -> liver       hepatic_uptake
+liver -> blood/plasma       hepatic_efflux_to_blood
+liver -> eliminated         biliary_efflux
+
+blood/plasma -> kidney      renal_uptake
+kidney -> eliminated        renal_efflux_to_urine
+kidney -> blood/plasma      tubular_reabsorption
+```
+
+Each process carries:
+
+```text
+name
+route
+Vmax (amount/hour)
+Km (concentration)
+source unbound fraction when tissue-sourced
+source/provenance ID
+transporter-family label
+```
+
+Flux kinetics:
+
+```text
+rate = Vmax × Cu,source / (Km + Cu,source)
+```
+
+For blood/plasma-source uptake, HumanSim uses:
+
+```text
+Cu,plasma = Cblood × fu_plasma / blood:plasma
+```
+
+For tissue-source efflux/reabsorption, an explicit tissue-source unbound fraction is
+required. No default is invented.
+
+All transporter routes are evaluated from one pre-transport state. If simultaneous
+outgoing requests exceed the available amount in a source compartment, they are
+scaled proportionally. The operator therefore preserves non-negativity and exact mass
+balance.
+
+The production PBPK solver applies transporter half-steps symmetrically around the
+elimination operator. The independent RK4 verifier computes the continuous
+Michaelis-Menten fluxes separately.
+
+#### External transporter table
+
+```text
+name,route,vmax_amount_per_h,km_concentration,
+source_unbound_fraction,source_id,transporter_family
+```
+
+Use:
+
+```bash
+python -m research.human_sim.run_external_disposition \
+  partition.csv \
+  --transporter-csv transporters.csv \
+  --fu-plasma 0.2 \
+  --fu-brain 0.1 \
+  --output runs/human_sim_external_disposition.json
+```
+
+Regulatory/source provenance includes ICH M12 / FDA transporter guidance and the
+International Transporter Consortium framing. The architecture covers the major
+classes represented by OATP hepatic uptake, OAT/OCT renal uptake, MATE/P-gp/BCRP
+efflux and renal secretion/reabsorption patterns without asserting any synthetic
+fixture parameters are real transporter measurements.
+
+#### Multi-compound interaction status
+
+Independent single-compound transporter processes remain the default. A process opts
+into multi-compound shared-site competition only when `interaction_group` is set.
+
+Competitive transporter DDIs are now implemented separately from this base layer;
+see Milestone 2.9 below.
+
+Still not modeled here:
+- noncompetitive/uncompetitive/mixed inhibition;
+- transporter induction/downregulation;
+- transporter abundance scaling by tissue/cell expression;
+- pH/ion-gradient coupling for MATE-like systems;
+- explicit tubular lumen concentration.
+
+Those remain separate mechanisms rather than being hidden inside Vmax/Km.
+
+
+### Milestone 2.9 — multi-compound transporter competition — IMPLEMENTED FOUNDATION
+
+HumanSim now supports shared-site transporter coupling between simultaneous compounds.
+
+A substrate process opts in explicitly:
+
+```text
+interaction_group = hepatic_OATP1B1
+```
+
+Processes with a blank group keep their original independent Michaelis-Menten
+behavior.
+
+For a shared group:
+
+```text
+substrate weight_j = Cu_j / Km_j
+inhibitor weight_k = Cu_k / Ki_k
+
+D = 1 + Σ substrate weights + Σ inhibitor weights
+
+rate_j = Vmax_j × substrate weight_j / D
+```
+
+Consequences:
+
+- two transported substrates automatically compete for the same declared site;
+- an inhibitor-only compound can contribute `Cu/Ki` without itself being transported;
+- the same ligand cannot be counted both as substrate and explicit inhibitor for one
+  interaction group;
+- interaction groups are explicit site/location identifiers, not inferred from a broad
+  family label such as "OAT/OCT-like".
+
+#### Coupled PK
+
+Transporter DDI is not post-processing.
+
+When transporter interactions are present, all ligands are advanced synchronously:
+
+```text
+exchange half-step
+    ↓
+shared transporter competition half-step
+    ↓
+compound-specific elimination
+    ↓
+shared transporter competition half-step
+    ↓
+reverse exchange half-step
+```
+
+The transporter denominator couples compounds, while mass remains tracked and
+conserved separately for every ligand.
+
+If no interaction group/inhibition metadata are present, the established independent
+single-ligand PBPK path is retained.
+
+#### External metadata
+
+Transporter kinetic CSV files may optionally add:
+
+```text
+interaction_group
+```
+
+Competitive inhibition can be imported independently with:
+
+```text
+inhibitor_name,interaction_group,ki_concentration,source_compartment,
+source_unbound_fraction,source_id,mode
+```
+
+Only `mode=competitive` is currently accepted.
+
+For inhibitor concentration:
+- `source_compartment=central` uses unbound plasma concentration derived from
+  blood concentration, fu_plasma and blood:plasma ratio;
+- tissue-source inhibition requires an explicit source unbound fraction.
+
+#### Independent verification
+
+The production coupled solver uses operator splitting and finite transporter
+half-steps.
+
+`coupled_pbpk_reference.py` separately re-derives the shared-site denominator and
+integrates the full coupled ODE system with fine-step RK4.
+
+Tests require production/reference agreement for:
+- two competing transported substrates;
+- inhibitor-only transporter DDI.
+
+The strict multi-ligand runner also attaches the coupled RK4 result to ZeroPain's
+independent-check ECC bit (`0x20`).
+
+This is an implementation-consistency check, not evidence that any synthetic Ki/Km
+values are biologically correct.
+
+#### Current boundary
+
+Implemented:
+- shared-site competitive substrate competition;
+- competitive inhibitor-only effects;
+- simultaneous transporter PK DDI + receptor PD competition;
+- per-ligand mass conservation;
+- independent RK4 verification.
+
+Not yet implemented:
+- noncompetitive/uncompetitive/mixed transporter inhibition;
+- time-dependent inhibition;
+- transporter induction/downregulation;
+- expression/abundance scaling;
+- explicit renal tubular-lumen state;
+- electrochemical/pH-gradient coupling.

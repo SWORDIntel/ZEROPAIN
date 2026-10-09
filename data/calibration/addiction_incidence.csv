@@ -1,0 +1,13 @@
+# Addiction/OUD incidence calibration dataset from cohort studies
+cumulative_mme,oud_incidence,study_weeks,context
+300,0.00792,4,Vowles 2015 acute low-dose cohort
+750,0.02157,6,Vowles 2015 short-term exposure
+1500,0.04375,8,Edlund 2014 low-cumulative cohort
+3000,0.08156,12,Edlund 2014 moderate exposure
+5000,0.11904,16,Bohnert 2018 medium-dose chronic
+8000,0.15664,24,Bohnert 2018 high-dose escalation
+12000,0.18741,36,Nielsen 2012 long-term cohort
+20000,0.21968,48,Nielsen 2012 chronic pain high-MME
+35000,0.24470,52,Edlund 2014 very high cumulative cohort
+55000,0.25788,52,Bohnert 2018 extended severe chronic cohort
+80000,0.26521,52,Vowles 2015 maximum observed cumulative cohort

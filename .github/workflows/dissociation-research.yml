@@ -1,0 +1,155 @@
+name: Dissociation Research CI
+
+on:
+  pull_request:
+    paths:
+      - "research/dissociation/**"
+      - "tests/test_dissociation_*.py"
+      - "doc/DISSOCIATION_OPIOID_GLUTAMATE_HYPOTHESES.md"
+      - ".github/workflows/dissociation-research.yml"
+  push:
+    branches:
+      - master
+    paths:
+      - "research/dissociation/**"
+      - "tests/test_dissociation_*.py"
+      - ".github/workflows/dissociation-research.yml"
+
+jobs:
+  dissociation-research:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install lightweight research dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "numpy>=1.24,<2" "pytest>=7.4,<9"
+
+      - name: Run dissociation research tests
+        run: |
+          python -m pytest -q tests/test_dissociation_*.py
+
+      - name: Smoke-run research simulators
+        env:
+          ZEROPAIN_VERIFY: "1"
+          ZEROPAIN_VERIFY_STRICT: "1"
+          ZEROPAIN_VERIFY_LOG: /tmp/dissociation_verification.jsonl
+        run: |
+          python -m research.dissociation.experiments \
+            --subjects 1000 --steps 80 \
+            --output /tmp/dissociation_state_matrix.json
+
+          python -m research.dissociation.factorial \
+            --subjects 300 --steps 40 \
+            --factors meth nmda_antagonism mor_partial_agonism kor_antagonism \
+            --output /tmp/dissociation_factorial.json
+
+          python -m research.dissociation.run_state_graph \
+            --states 4 --steps 120 --sync-interval 30 \
+            --output /tmp/dissociation_state_graph.json
+
+          python -m research.dissociation.run_state_network \
+            --states 4 --steps 120 --sync-interval 30 \
+            --output /tmp/dissociation_state_network.json
+
+          python -m research.dissociation.run_belief_network \
+            --states 4 --steps 120 --sync-interval 30 \
+            --output /tmp/dissociation_belief_network.json
+
+          python -m research.dissociation.belief_phase_sweep \
+            --trust-levels 0.25 0.45 0.65 \
+            --steps 80 --seeds 2 --sync-interval 20 \
+            --output /tmp/dissociation_belief_phase_sweep.json
+
+          python -m research.dissociation.parameter_recovery \
+            --subjects 250 --steps 40 \
+            --parameters meth_salience_weight nmda_integration_weight mor_partial_control_weight kor_antagonist_control_weight wake_coordination_weight \
+            --grid-points 7 --passes 3 \
+            --target-replicates 2 --fit-replicates 2 --fit-seed-offset 1000 \
+            --output /tmp/dissociation_parameter_recovery.json
+
+          python -m research.dissociation.model_comparison \
+            --states 4 --steps 240 \
+            --transient-lags 3 --test-every 5 \
+            --output /tmp/dissociation_model_comparison.json
+
+          python -m research.dissociation.identifiability \
+            --subjects 250 --steps 40 --replicates 2 \
+            --parameters meth_salience_weight nmda_integration_weight mor_partial_control_weight kor_antagonist_control_weight wake_coordination_weight \
+            --output /tmp/dissociation_identifiability.json
+
+          python -m research.dissociation.experimental_design \
+            --subjects 180 --steps 30 --replicates 1 \
+            --max-condition 6 --min-information-fraction 0.35 \
+            --validation-seeds 421 \
+            --recovery-check --recovery-grid-points 5 --recovery-passes 2 \
+            --output /tmp/dissociation_experimental_design.json
+
+          python -m research.dissociation.observable_design \
+            --subjects 160 --steps 30 --replicates 2 \
+            --panels switch_only observer_only observer_wearable multimodal \
+            --max-condition 15 --min-singular-fraction 0.20 \
+            --missing 0.10 --validation-seeds 711 \
+            --grid-points 5 --passes 2 \
+            --output /tmp/dissociation_observable_design.json
+
+          python -m research.dissociation.longitudinal_nulls \
+            --subjects 4 --sessions 14 \
+            --micro-population 45 --steps 14 \
+            --missing 0.08 \
+            --output /tmp/dissociation_longitudinal_nulls.json
+
+          python -m research.dissociation.longitudinal_null_stability \
+            --seeds 3 --subjects 4 --sessions 12 \
+            --micro-population 40 --steps 12 \
+            --missing 0.08 \
+            --output /tmp/dissociation_longitudinal_null_stability.json
+
+          python -m research.dissociation.observational_csv \
+            research/dissociation/examples/observational_template.csv \
+            --test-fraction 0.25 \
+            --output /tmp/dissociation_observational_csv.json
+
+          python -m research.dissociation.model_selection_stability \
+            --seeds 3 --steps 140 --states 4 \
+            --transient-lags 2 --test-every 5 \
+            --output /tmp/dissociation_model_selection_stability.json
+
+          python -m research.dissociation.run_observation_model \
+            --states 4 --steps 120 \
+            --output /tmp/dissociation_observation_model.json
+
+      - name: ECC-like shadow verification
+        env:
+          ZEROPAIN_VERIFY: "1"
+          ZEROPAIN_VERIFY_REPLAY: "1"
+          ZEROPAIN_VERIFY_STRICT: "1"
+          ZEROPAIN_VERIFY_LOG: /tmp/dissociation_verification.jsonl
+        run: |
+          python -m research.dissociation.run_belief_network \
+            --states 4 --steps 80 --sync-interval 20 \
+            --output /tmp/dissociation_verified_belief.json
+
+          python -m research.dissociation.run_observation_model \
+            --states 4 --steps 80 \
+            --output /tmp/dissociation_verified_observation.json
+
+          python -m zeropain.verification_scrub \
+            --log /tmp/dissociation_verification.jsonl \
+            --report /tmp/dissociation_verification_scrub.json
+
+      - name: Upload synthetic research diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dissociation-simulation-audits
+          path: |
+            /tmp/dissociation_*.json
+            /tmp/dissociation_verification.jsonl
+          if-no-files-found: ignore
+          retention-days: 14

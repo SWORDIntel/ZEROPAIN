@@ -43,6 +43,8 @@ results/
 outputs/
 *.log
 *.csv
+!data/calibration/*.csv
+!research/**/examples/*.csv
 *.json
 !requirements.json
 !package.json

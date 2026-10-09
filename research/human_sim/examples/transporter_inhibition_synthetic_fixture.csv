@@ -1,0 +1,2 @@
+inhibitor_name,interaction_group,ki_concentration,source_compartment,source_unbound_fraction,source_id,mode
+inhibitor,hepatic_OATP1B1,0.03,central,,synthetic_fixture,competitive
