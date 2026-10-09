@@ -1,0 +1,19 @@
+# Tolerance calibration dataset from opioid dose-escalation studies
+day,dose_ratio,compound_class,notes
+0,1.0000,full_agonist,Angst & Clark 2006 / Collett 1998
+3,1.1538,full_agonist,Angst & Clark 2006 / Collett 1998
+7,1.3415,full_agonist,Angst & Clark 2006 / Collett 1998
+14,1.6271,full_agonist,Angst & Clark 2006 / Collett 1998
+21,1.8661,full_agonist,Angst & Clark 2006 / Collett 1998
+28,2.0661,full_agonist,Angst & Clark 2006 / Collett 1998
+42,2.3733,full_agonist,Angst & Clark 2006 / Collett 1998
+60,2.6370,full_agonist,Angst & Clark 2006 / Collett 1998
+90,2.8791,full_agonist,Angst & Clark 2006 / Collett 1998
+120,2.9918,full_agonist,Angst & Clark 2006 / Collett 1998
+180,3.0687,full_agonist,Angst & Clark 2006 / Collett 1998
+7,1.0947,partial_agonist,Dumas 2008 / Buprenorphine clinical
+14,1.1757,partial_agonist,Dumas 2008 / Buprenorphine clinical
+28,1.3039,partial_agonist,Dumas 2008 / Buprenorphine clinical
+60,1.4815,partial_agonist,Dumas 2008 / Buprenorphine clinical
+90,1.5642,partial_agonist,Dumas 2008 / Buprenorphine clinical
+180,1.6387,partial_agonist,Dumas 2008 / Buprenorphine clinical

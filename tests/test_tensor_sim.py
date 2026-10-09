@@ -7,7 +7,9 @@ Unit and integration tests for ZEROPAIN Tensor Simulation Engine
 import sys
 from pathlib import Path
 import unittest
-import torch
+import pytest
+
+torch = pytest.importorskip("torch")
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.append(str(ROOT / "src"))
